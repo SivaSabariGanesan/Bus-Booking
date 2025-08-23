@@ -1,4 +1,4 @@
-import React from 'react';
+  import React from 'react';
 import { Clock, Users, MapPin } from 'lucide-react';
 import { Bus } from '../types';
 
@@ -38,71 +38,50 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, onSelect, loading, selec
       </div>
 
       <div className="space-y-3 mb-6">
+        {/* Route Information */}
         <div className="flex items-center text-gray-600">
-          <Clock className="h-4 w-4 mr-2" />
+          <div className="w-4 h-4 mr-2 flex-shrink-0">
+            🚌
+          </div>
           <div className="text-sm">
-            <span className="font-medium">Departure:</span> {bus.departure_time}
+            <span className="font-medium">Route:</span>
+            <div className="mt-1 text-sm font-medium text-blue-600">
+              {bus.route_display}
+            </div>
           </div>
         </div>
+        
+        {/* Departure Date and Time */}
         <div className="flex items-center text-gray-600">
-          <Clock className="h-4 w-4 mr-2" />
+          <div className="w-4 h-4 mr-2 flex-shrink-0">
+            📅
+          </div>
           <div className="text-sm">
-            <span className="font-medium">Return:</span> {bus.return_time}
+            <span className="font-medium">Departure:</span>
+            <div className="mt-1 text-sm font-medium text-green-600">
+              {bus.departure_time}
+            </div>
           </div>
         </div>
+
+        <div className="flex items-center text-gray-600">
+          <div className="w-4 h-4 mr-2 flex-shrink-0">
+            📅
+          </div>
+          <div className="text-sm">
+            <span className="font-medium">Departure:</span>
+            <div className="mt-1 text-sm font-medium text-green-600">
+              {bus.departure_date}
+            </div>
+          </div>
+        </div>
+        
         <div className="flex items-center text-gray-600">
           <Users className="h-4 w-4 mr-2" />
           <div className="text-sm">
             <span className="font-medium">Capacity:</span> {bus.capacity} seats
           </div>
         </div>
-        
-        {/* Available Dates Section */}
-        {bus.weekend_dates && bus.weekend_dates.length > 0 && (
-          <div className="flex items-start text-gray-600">
-            <div className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0">
-              📅
-            </div>
-            <div className="text-sm">
-              <span className="font-medium">Weekend Dates:</span>
-              <div className="mt-1 space-y-1">
-                {bus.weekend_dates.map((date, index) => (
-                  <div key={index} className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded">
-                    {new Date(date).toLocaleDateString('en-US', {
-                      weekday: 'short',
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {bus.return_dates && bus.return_dates.length > 0 && (
-          <div className="flex items-start text-gray-600">
-            <div className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0">
-              📅
-            </div>
-            <div className="text-sm">
-              <span className="font-medium">Return Trip Dates:</span>
-              <div className="mt-1 space-y-1">
-                {bus.return_dates.map((date, index) => (
-                  <div key={index} className="text-xs bg-green-50 text-green-700 px-2 py-1 rounded">
-                    {new Date(date).toLocaleDateString('en-US', {
-                      weekday: 'short',
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric'
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <button
@@ -124,7 +103,7 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, onSelect, loading, selec
         ) : bus.is_full ? (
           'Bus Full'
         ) : (
-          'Book Now'
+          'Book This Bus'
         )}
       </button>
     </div>

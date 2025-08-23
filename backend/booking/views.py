@@ -46,6 +46,100 @@ class BusListView(generics.ListAPIView):
     queryset = Bus.objects.all()
     serializer_class = BusSerializer
     permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filter buses by departure date if specified"""
+        queryset = Bus.objects.all()
+        
+        # Filter by departure date if provided
+        departure_date = self.request.query_params.get('departure_date', None)
+        if departure_date:
+            try:
+                from datetime import datetime
+                target_date = datetime.strptime(departure_date, '%Y-%m-%d').date()
+                queryset = queryset.filter(departure_date=target_date)
+            except ValueError:
+                # If date format is invalid, return all buses
+                pass
+        
+        # Filter by from_location if provided
+        from_location = self.request.query_params.get('from_location', None)
+        if from_location:
+            queryset = queryset.filter(from_location__icontains=from_location)
+        
+        # Filter by to_location if provided
+        to_location = self.request.query_params.get('to_location', None)
+        if to_location:
+            queryset = queryset.filter(to_location__icontains=to_location)
+        
+        return queryset.order_by('departure_date', 'departure_time')
+
+
+@api_view(['POST'])
+def debug_request(request):
+    """Debug endpoint to see raw request data"""
+    try:
+        print("=== DEBUG REQUEST ===")
+        print(f"Request method: {request.method}")
+        print(f"Content type: {request.content_type}")
+        print(f"Request data: {request.data}")
+        
+        return Response({
+            'success': True,
+            'method': request.method,
+            'content_type': request.content_type,
+            'data': request.data,
+        })
+    except Exception as e:
+        print(f"Error in debug endpoint: {e}")
+        return Response({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@api_view(['POST'])
+def test_booking_data(request):
+    """Test endpoint to see what data is being received"""
+    print("=== TEST BOOKING DATA ===")
+    print(f"Request data: {request.data}")
+    print(f"Request data type: {type(request.data)}")
+    print(f"Content type: {request.content_type}")
+    
+    # Try to parse the data
+    try:
+        bus_id = request.data.get('bus_id')
+        trip_date = request.data.get('trip_date')
+        departure_time = request.data.get('departure_time')
+        from_location = request.data.get('from_location')
+        to_location = request.data.get('to_location')
+        
+        print(f"Parsed data:")
+        print(f"  bus_id: {bus_id} (type: {type(bus_id)})")
+        print(f"  trip_date: {trip_date} (type: {type(trip_date)})")
+        print(f"  departure_time: {departure_time} (type: {type(departure_time)})")
+        print(f"  from_location: {from_location} (type: {type(from_location)})")
+        print(f"  to_location: {to_location} (type: {type(to_location)})")
+        
+        return Response({
+            'success': True,
+            'received_data': request.data,
+            'parsed_data': {
+                'bus_id': bus_id,
+                'trip_date': trip_date,
+                'departure_time': departure_time,
+                'from_location': from_location,
+                'to_location': to_location
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error parsing data: {str(e)}")
+        return Response({
+            'success': False,
+            'error': str(e),
+            'received_data': request.data
+        }, status=400)
 
 
 class BookingCreateView(generics.CreateAPIView):
@@ -53,32 +147,63 @@ class BookingCreateView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated]
     
     def create(self, request, *args, **kwargs):
-        print(f"Received booking data: {request.data}")  # Debug log
+        print(f"=== BOOKING CREATE VIEW ===")
+        print(f"Request method: {request.method}")
+        print(f"Request user: {request.user.email}")
+        print(f"Request data: {request.data}")
+        print(f"Request data type: {type(request.data)}")
+        
         serializer = self.get_serializer(data=request.data)
-        if not serializer.is_valid():
-            print(f"Validation errors: {serializer.errors}")  # Debug log
+        print(f"Serializer created: {serializer}")
+        
+        print("=== CALLING SERIALIZER VALIDATION ===")
+        is_valid = serializer.is_valid()
+        print(f"Serializer is_valid result: {is_valid}")
+        
+        if not is_valid:
+            print(f"Validation errors: {serializer.errors}")
+            print(f"Validation errors type: {type(serializer.errors)}")
             return Response({
                 'success': False,
-                'errors': serializer.errors
+                'errors': serializer.errors,
+                'received_data': request.data  # Include received data for debugging
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        bus = Bus.objects.get(id=serializer.validated_data['bus_id'])
-        booking = Booking.objects.create(
-            student=request.user,
-            bus=bus,
-            trip_date=serializer.validated_data['trip_date'],
-            departure_time=serializer.validated_data['departure_time'],
-            return_time=serializer.validated_data.get('return_time'),
-            is_return_trip=(serializer.validated_data['trip_type'] == 'RETURN'),
-            trip_type=serializer.validated_data['trip_type'],
-            from_location=serializer.validated_data['from_location'],
-            to_location=serializer.validated_data['to_location'],
-        )
+        print("=== SERIALIZER VALIDATION PASSED ===")
+        print(f"Validated data: {serializer.validated_data}")
         
-        return Response({
-            'success': True,
-            'booking': BookingSerializer(booking).data
-        }, status=status.HTTP_201_CREATED)
+        try:
+            bus = Bus.objects.get(id=serializer.validated_data['bus_id'])
+            print(f"Found bus: {bus.bus_no}")  # Debug log
+            
+            booking = Booking.objects.create(
+                student=request.user,
+                bus=bus,
+                trip_date=serializer.validated_data['trip_date'],
+                departure_time=serializer.validated_data['departure_time'],
+                from_location=serializer.validated_data['from_location'],
+                to_location=serializer.validated_data['to_location'],
+            )
+            
+            print(f"Booking created successfully: {booking.id}")  # Debug log
+            
+            return Response({
+                'success': True,
+                'booking': BookingSerializer(booking).data
+            }, status=status.HTTP_201_CREATED)
+            
+        except Bus.DoesNotExist:
+            print(f"Bus not found: {serializer.validated_data['bus_id']}")  # Debug log
+            return Response({
+                'success': False,
+                'errors': {'bus_id': ['Bus not found']}
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print(f"Error creating booking: {str(e)}")  # Debug log
+            return Response({
+                'success': False,
+                'errors': {'non_field_errors': [f'Error creating booking: {str(e)}']}
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])

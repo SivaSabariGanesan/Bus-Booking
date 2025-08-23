@@ -2,7 +2,6 @@ from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 from django.db import models
 from django.core.mail import send_mail
 from django.conf import settings
-from multiselectfield import MultiSelectField
 from django.utils import timezone
 
 
@@ -93,14 +92,8 @@ class Bus(models.Model):
     route_name = models.CharField(max_length=100)
     from_location = models.CharField(max_length=100, default="")
     to_location = models.CharField(max_length=100, default="")
-    trip_types = MultiSelectField(choices=[
-        ("RETURN", "Return Trip"),
-        ("WEEKEND", "Weekend Trip"),
-    ], default=['RETURN'])
-    weekend_dates = models.JSONField(default=list, blank=True, help_text="List of weekend dates when this bus is available (YYYY-MM-DD format)")
-    return_dates = models.JSONField(default=list, blank=True, help_text="List of return trip dates when this bus is available (YYYY-MM-DD format)")
+    departure_date = models.DateField(default=timezone.now, help_text="Date when this bus is available for departure")
     departure_time = models.TimeField()
-    return_time = models.TimeField()
     capacity = models.PositiveIntegerField()
     
     def __str__(self):
@@ -110,28 +103,40 @@ class Bus(models.Model):
     def available_seats(self):
         return self.capacity - self.booking_set.count()
     
+    @property
+    def route_display(self):
+        """Display route in a user-friendly format"""
+        return f"{self.from_location} → {self.to_location}"
+    
     def is_full(self):
         return self.booking_set.count() >= self.capacity
+    
+    def is_available_for_date(self, target_date):
+        """Check if bus is available for departure on a specific date"""
+        return self.departure_date == target_date
+    
+    def get_departure_info(self):
+        """Get formatted departure information"""
+        return {
+            'date': self.departure_date.strftime('%Y-%m-%d'),
+            'time': self.departure_time.strftime('%H:%M'),
+            'formatted_date': self.departure_date.strftime('%A, %B %d, %Y'),
+            'formatted_time': self.departure_time.strftime('%I:%M %p')
+        }
 
 
 def get_default_time():
     return timezone.now().time()
 
 class Booking(models.Model):
-    TRIP_TYPE_CHOICES = [
-        ("RETURN", "Return Trip"),
-        ("WEEKEND", "Weekend Trip"),
-    ]
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
     bus = models.ForeignKey(Bus, on_delete=models.CASCADE)
     booking_date = models.DateTimeField(auto_now_add=True)
     trip_date = models.DateField(default=timezone.now)  # The actual date when the trip happens
     departure_time = models.TimeField(default=get_default_time)  # Actual departure time for this booking
-    return_time = models.TimeField(null=True, blank=True)  # Return time (only for return trips)
-    is_return_trip = models.BooleanField(default=True)
-    trip_type = models.CharField(max_length=10, choices=TRIP_TYPE_CHOICES, default="RETURN")
     from_location = models.CharField(max_length=100, default="")
     to_location = models.CharField(max_length=100, default="")
+    is_return_trip = models.BooleanField(default=True)
     
     class Meta:
         unique_together = ['student', 'bus']
@@ -155,9 +160,10 @@ class Booking(models.Model):
         Booking Details:
         - Bus Number: {self.bus.bus_no}
         - Route: {self.bus.route_name}
+        - From: {self.from_location or self.bus.from_location}
+        - To: {self.to_location or self.bus.to_location}
         - Departure Time: {self.bus.departure_time}
-        - Return Time: {self.bus.return_time}
-        - Return Trip: {'Yes' if self.is_return_trip else 'No'}
+        - Trip Date: {self.trip_date.strftime('%Y-%m-%d')}
         - Booking Date: {self.booking_date.strftime('%Y-%m-%d %H:%M')}
         
         Please arrive at the pickup point 10 minutes before departure time.

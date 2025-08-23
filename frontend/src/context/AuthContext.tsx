@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { login as apiLogin } from '../services/api';
+import { login as apiLogin, restoreBasicAuth, getCurrentUser } from '../services/api';
 import { User } from '../types';
 
 interface AuthContextType {
@@ -37,14 +37,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const parsedUser = JSON.parse(storedUser);
         console.log('AuthContext: Parsed user from localStorage:', parsedUser);
         
-        // For security, we don't store passwords in localStorage
-        // So we can't restore the basicAuth. Clear the user and force re-login
-        console.log('AuthContext: Cannot restore authentication from localStorage, clearing user state');
-        localStorage.removeItem('user');
-        setUser(null);
+        // Try to restore basic auth
+        if (restoreBasicAuth()) {
+          console.log('AuthContext: Basic auth restored, validating user session...');
+          // Validate the user session by making an API call
+          getCurrentUser()
+            .then(userData => {
+              console.log('AuthContext: User session validated, user data:', userData);
+              setUser(userData);
+            })
+            .catch(error => {
+              console.log('AuthContext: User session invalid, clearing auth:', error);
+              localStorage.removeItem('user');
+              setUser(null);
+            });
+        } else {
+          console.log('AuthContext: Could not restore basic auth, clearing user state');
+          localStorage.removeItem('user');
+          setUser(null);
+        }
       } catch (error) {
         console.error('AuthContext: Error parsing stored user:', error);
         localStorage.removeItem('user');
+        setUser(null);
       }
     } else {
       console.log('AuthContext: No stored user found in localStorage');
@@ -57,7 +72,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const userData = await apiLogin(email, password);
       console.log('Login successful, user data:', userData);
       setUser(userData);
-      console.log('User state updated');
+      // Store user in localStorage for persistence
+      localStorage.setItem('user', JSON.stringify(userData));
+      console.log('User state updated and stored in localStorage');
     } catch (error) {
       console.error('Login failed:', error);
       throw error;

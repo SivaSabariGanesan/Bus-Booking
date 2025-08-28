@@ -3,7 +3,9 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils import timezone
 from datetime import timedelta
+from import_export.admin import ImportExportModelAdmin
 from .models import Student, Bus, Booking, BookingOTP
+from .resources import StudentResource, BusResource, BookingResource, BookingOTPResource
 
 
 class DepartureDateFilter(admin.SimpleListFilter):
@@ -47,7 +49,8 @@ class BusAdminForm(forms.ModelForm):
 
 
 @admin.register(Student)
-class StudentAdmin(UserAdmin):
+class StudentAdmin(ImportExportModelAdmin, UserAdmin):
+    resource_class = StudentResource
     list_display = ('email', 'first_name', 'last_name', 'roll_no', 'dept', 'year', 'is_active', 'has_active_booking')
     list_filter = ('year', 'dept', 'gender', 'student_type', 'degree_type', 'is_active')
     search_fields = ('email', 'first_name', 'last_name', 'roll_no')
@@ -85,7 +88,8 @@ class StudentAdmin(UserAdmin):
 
 
 @admin.register(Bus)
-class BusAdmin(admin.ModelAdmin):
+class BusAdmin(ImportExportModelAdmin, admin.ModelAdmin):
+    resource_class = BusResource
     form = BusAdminForm
     list_display = ('bus_no', 'route_name', 'from_location', 'to_location', 'departure_date', 'departure_time', 'capacity', 'available_seats', 'is_full')
     list_filter = (DepartureDateFilter, 'route_name', 'from_location', 'to_location')
@@ -139,7 +143,8 @@ class BookingOTPInline(admin.TabularInline):
 
 
 @admin.register(Booking)
-class BookingAdmin(admin.ModelAdmin):
+class BookingAdmin(ImportExportModelAdmin, admin.ModelAdmin):
+    resource_class = BookingResource
     list_display = ('student', 'bus', 'booking_date', 'trip_date', 'departure_time', 'from_location', 'to_location', 'status', 'otp_code')
     list_filter = ('bus__route_name', 'trip_date', 'departure_time', 'booking_date', 'status')
     search_fields = ('student__email', 'student__first_name', 'student__last_name', 'bus__bus_no', 'from_location', 'to_location')
@@ -166,7 +171,8 @@ class BookingAdmin(admin.ModelAdmin):
 
 
 @admin.register(BookingOTP)
-class BookingOTPAdmin(admin.ModelAdmin):
+class BookingOTPAdmin(ImportExportModelAdmin, admin.ModelAdmin):
+    resource_class = BookingOTPResource
     list_display = ('booking', 'otp_code', 'created_at', 'expires_at', 'verified', 'is_expired')
     list_filter = ('verified', 'created_at', 'expires_at')
     search_fields = ('booking__student__email', 'booking__student__first_name', 'otp_code')

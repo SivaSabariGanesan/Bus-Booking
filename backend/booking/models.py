@@ -101,15 +101,16 @@ class Bus(models.Model):
     
     @property
     def available_seats(self):
-        return self.capacity - self.booking_set.count()
+        return self.capacity - self.booking_set.filter(status='confirmed').count()
     
     @property
     def route_display(self):
         """Display route in a user-friendly format"""
         return f"{self.from_location} → {self.to_location}"
     
+    @property
     def is_full(self):
-        return self.booking_set.count() >= self.capacity
+        return self.booking_set.filter(status='confirmed').count() >= self.capacity
     
     def is_available_for_date(self, target_date):
         """Check if bus is available for departure on a specific date"""

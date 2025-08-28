@@ -35,4 +35,5 @@ export interface Booking {
   departure_time: string;
   from_location: string;
   to_location: string;
+  status: string;
 }

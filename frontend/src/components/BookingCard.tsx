@@ -9,11 +9,9 @@ import type { Booking } from "../types"
 
 interface BookingCardProps {
   booking: Booking
-  onCancel: () => void
-  loading: boolean
 }
 
-const BookingCard: React.FC<BookingCardProps> = ({ booking, onCancel, loading }) => {
+const BookingCard: React.FC<BookingCardProps> = ({ booking }) => {
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       weekday: "long",
@@ -68,9 +66,7 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onCancel, loading })
           <div className="text-xs text-muted-foreground">Booked on {formatDate(booking.created_at)}</div>
         </div>
 
-        <Button variant="destructive" size="sm" onClick={onCancel} disabled={loading} className="w-full">
-          {loading ? "Cancelling..." : "Cancel Booking"}
-        </Button>
+
       </CardContent>
     </Card>
   )

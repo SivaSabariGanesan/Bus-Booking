@@ -9,10 +9,9 @@ import { Input } from "../components/ui/input"
 import { Alert, AlertDescription } from "../components/ui/alert"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog"
 import type { Bus as BusType, Booking } from "../types"
-import { getBuses, createBooking, getCurrentBooking, cancelBooking, verifyBookingOtp } from "../services/api"
+import { getBuses, createBooking, getCurrentBooking, verifyBookingOtp } from "../services/api"
 import { useAuth } from "../context/AuthContext"
 import BusCard from "./BusCard"
-import BookingCard from "./BookingCard"
 import { toast } from "sonner"
 import Navbar from "./Navbar"
 
@@ -62,7 +61,13 @@ const Dashboard: React.FC = () => {
   }
 
   const handleBookBus = async (busId: number) => {
-    if (!user || currentBooking) return
+    if (!user) return
+    
+    // Check if user already has a booking
+    if (currentBooking) {
+      toast.error("You already have an active booking. You can only have one booking at a time.")
+      return
+    }
 
     const bus = buses.find((b) => b.id === busId)
     if (!bus || bus.is_full) return
@@ -95,19 +100,7 @@ const Dashboard: React.FC = () => {
     }
   }
 
-  const handleCancelBooking = async () => {
-    try {
-      setBookingLoading(true)
-      await cancelBooking()
-      setCurrentBooking(null)
-      await loadData()
-      toast.success("Booking cancelled")
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Cancellation failed")
-    } finally {
-      setBookingLoading(false)
-    }
-  }
+
 
   const handleOtpVerification = async () => {
     if (!pendingBookingId) return
@@ -217,17 +210,13 @@ const Dashboard: React.FC = () => {
         )}
 
         {currentBooking && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5 text-green-600" />
-                Current Booking
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <BookingCard booking={currentBooking} onCancel={handleCancelBooking} loading={bookingLoading} />
-            </CardContent>
-          </Card>
+          <Alert>
+            <CheckCircle className="h-4 w-4" />
+            <AlertDescription>
+              You have an active booking. You can only have one booking at a time. 
+              View your booking details in the "My Booking" section.
+            </AlertDescription>
+          </Alert>
         )}
 
         <Card>
@@ -243,30 +232,20 @@ const Dashboard: React.FC = () => {
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {filteredBuses.map((bus) => (
-                  <BusCard
-                    key={bus.id}
-                    bus={bus}
-                    onBook={() => handleBookBus(bus.id)}
-                    loading={bookingLoading}
-                    isBooked={!!(currentBooking && currentBooking.bus && currentBooking.bus.id === bus.id)}
-                  />
+                                     <BusCard
+                     key={bus.id}
+                     bus={bus}
+                     onBook={() => handleBookBus(bus.id)}
+                     loading={bookingLoading}
+                     isBooked={!!currentBooking}
+                   />
                 ))}
               </div>
             )}
           </CardContent>
         </Card>
 
-        {currentBooking && (
-          <Card>
-            <CardContent className="text-center py-8">
-              <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">Booking Active</h3>
-              <p className="text-muted-foreground">
-                You have an active booking. You can only have one booking at a time.
-              </p>
-            </CardContent>
-          </Card>
-        )}
+
       </div>
 
       <Dialog open={showOtpModal} onOpenChange={setShowOtpModal}>

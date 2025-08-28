@@ -84,7 +84,7 @@ class CreateBookingSerializer(serializers.Serializer):
             print(f"Bus capacity: {bus.capacity}")
             print(f"Bus bookings count: {bus.booking_set.count()}")
             
-            if bus.is_full():
+            if bus.is_full:
                 print(f"Bus {bus.bus_no} is full")
                 raise serializers.ValidationError("Bus is full")
             

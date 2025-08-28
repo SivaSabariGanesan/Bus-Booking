@@ -224,7 +224,7 @@ def current_booking(request):
     try:
         booking = Booking.objects.filter(student=request.user, status__in=['pending', 'confirmed']).order_by('-booking_date').first()
         if booking:
-            return Response(BookingSerializer(booking).data)
+            return Response({'booking': BookingSerializer(booking).data})
         else:
             return Response({'booking': None})
     except Exception as e:

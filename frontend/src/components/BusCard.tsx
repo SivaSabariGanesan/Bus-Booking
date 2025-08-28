@@ -29,8 +29,6 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked }) => 
 
       <CardContent className="space-y-4">
         <div className="space-y-2">
-          <h3 className="font-medium text-sm">{bus.route_name}</h3>
-
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <MapPin className="h-3 w-3" />
             <span className="truncate">{bus.from_location}</span>

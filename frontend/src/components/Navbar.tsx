@@ -114,15 +114,24 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
             <div className="absolute top-full left-0 right-0 mt-4 bg-white/95 backdrop-blur-md rounded-2xl border border-gray-200 shadow-xl p-4 max-h-[70vh] overflow-y-auto animate-in fade-in-0 slide-in-from-top-2 duration-300 z-40">
               <div className="space-y-6">
                 <div>
-                  <h3 className="font-semibold text-purple-600 mb-3 text-base">Menu</h3>
-                  <div className="space-y-2 pl-4">
-                    <div className="py-2">
-                      <HoveredLink href="/profile">Profile</HoveredLink>
-                    </div>
-                    <div className="py-2">
-                      <HoveredLink href="/my-booking">My Booking</HoveredLink>
-                    </div>
-                  </div>
+                  <h3 className="font-semibold text-black-600 mb-3 text-base">Menu</h3>
+                                     <div className="space-y-2 pl-4">
+                     <div className="py-2">
+                       <Link to="/" className="text-gray-700 hover:text-black transition-colors duration-200">
+                         Home
+                       </Link>
+                     </div>
+                     <div className="py-2">
+                       <Link to="/profile" className="text-gray-700 hover:text-black transition-colors duration-200">
+                         Profile
+                       </Link>
+                     </div>
+                     <div className="py-2">
+                       <Link to="/my-booking" className="text-gray-700 hover:text-black transition-colors duration-200">
+                         My Booking
+                       </Link>
+                     </div>
+                   </div>
                 </div>
               </div>
             </div>
@@ -133,4 +142,4 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
   )
 }
 
-export default Navbar
+export default Navbar 

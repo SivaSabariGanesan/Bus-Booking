@@ -3,6 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './components/LoginPage';
 import Dashboard from './components/Dashboard';
+import Profile from './components/Profile';
+import MyBooking from './components/MyBooking';
+import Navbar from './components/Navbar';
 import { Toaster } from 'sonner';
 
 // Protected Route Component
@@ -10,6 +13,14 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const { isAuthenticated } = useAuth();
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
 };
+
+// Layout with Navbar
+const WithNavbar: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <>
+    <Navbar />
+    {children}
+  </>
+);
 
 // Main App Component
 const AppRoutes: React.FC = () => {
@@ -25,7 +36,29 @@ const AppRoutes: React.FC = () => {
         path="/" 
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <WithNavbar>
+              <Dashboard />
+            </WithNavbar>
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/profile" 
+        element={
+          <ProtectedRoute>
+            <WithNavbar>
+              <Profile />
+            </WithNavbar>
+          </ProtectedRoute>
+        } 
+      />
+      <Route 
+        path="/my-booking" 
+        element={
+          <ProtectedRoute>
+            <WithNavbar>
+              <MyBooking />
+            </WithNavbar>
           </ProtectedRoute>
         } 
       />

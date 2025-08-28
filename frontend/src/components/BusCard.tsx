@@ -15,20 +15,15 @@ interface BusCardProps {
 }
 
 const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked }) => {
-  const availabilityColor = bus.is_full ? "destructive" : bus.available_seats < 10 ? "secondary" : "default"
-  const availabilityText = bus.is_full ? "Full" : `${bus.available_seats} seats`
+  const availabilityColor = bus.is_full ? "destructive" : "default"
+  const availabilityText = bus.is_full ? "Full" : "Available"
 
   return (
     <Card className={`transition-all hover:shadow-md ${isBooked ? "ring-2 ring-primary" : ""}`}>
       <CardHeader className="pb-3">
-        <CardTitle className="flex items-center justify-between text-lg">
-          <div className="flex items-center gap-2">
-            <Bus className="h-4 w-4" />
-            {bus.bus_no}
-          </div>
-          <Badge variant={availabilityColor} className="text-xs">
-            {availabilityText}
-          </Badge>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <Bus className="h-4 w-4" />
+          {bus.route_name}
         </CardTitle>
       </CardHeader>
 
@@ -43,12 +38,7 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked }) => 
             <span className="truncate">{bus.to_location}</span>
           </div>
 
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Users className="h-3 w-3" />
-            <span>
-              {bus.available_seats}/{bus.total_seats} available
-            </span>
-          </div>
+
         </div>
 
         <Button onClick={onBook} disabled={loading || bus.is_full || isBooked} className="w-full" size="sm">

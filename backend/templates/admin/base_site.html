@@ -293,6 +293,65 @@ html[data-theme="dark"] .bg-danger,
 html[data-theme="dark"] .bg-info {
     background-color: inherit !important;
 }
+
+/* CRITICAL: Fix for Django admin action buttons - ensure "Go" button is visible */
+html[data-theme="dark"] #changelist .actions .button,
+html[data-theme="dark"] button[name="index"],
+html[data-theme="dark"] input[name="index"],
+html[data-theme="dark"] .actions input[type="submit"] {
+    background-color: var(--primary) !important;
+    color: var(--primary-fg) !important;
+    border-color: var(--primary) !important;
+    padding: 4px 8px !important;
+    border-radius: 4px !important;
+    font-size: 0.8125rem !important;
+    cursor: pointer !important;
+    display: inline-block !important;
+    margin-left: 10px !important;
+}
+
+html[data-theme="dark"] #changelist .actions .button:hover,
+html[data-theme="dark"] button[name="index"]:hover,
+html[data-theme="dark"] input[name="index"]:hover,
+html[data-theme="dark"] .actions input[type="submit"]:hover {
+    background-color: var(--link-hover-color) !important;
+    border-color: var(--link-hover-color) !important;
+}
+
+/* CRITICAL: Force action buttons to be visible and properly positioned */
+#changelist .actions button[name="index"],
+#changelist .actions input[name="index"],
+#changelist .actions input[type="submit"] {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    position: relative !important;
+    z-index: 10 !important;
+}
+
+/* Additional fix to ensure action buttons appear */
+.actions .button,
+.actions input[type="submit"] {
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+}
+
+/* Fix for action dropdown styling */
+html[data-theme="dark"] .actions select {
+    background-color: var(--body-bg) !important;
+    color: var(--body-fg) !important;
+    border-color: var(--border-color) !important;
+    margin-right: 10px !important;
+}
+
+/* Ensure proper spacing in actions area */
+.actions {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    margin: 10px 0 !important;
+}
 </style>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -322,6 +381,29 @@ document.addEventListener('DOMContentLoaded', function() {
         themeToggle.innerHTML = theme === 'light' ? '🌙' : '☀️';
         themeToggle.title = theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode';
     }
+    
+    // CRITICAL: Ensure "Go" button is always visible
+    function ensureGoButton() {
+        const actionsArea = document.querySelector('.actions');
+        if (actionsArea) {
+            const goButton = actionsArea.querySelector('button[name="index"], input[name="index"], input[type="submit"]');
+            if (!goButton) {
+                // Create "Go" button if it doesn't exist
+                const newGoButton = document.createElement('input');
+                newGoButton.type = 'submit';
+                newGoButton.name = 'index';
+                newGoButton.value = 'Go';
+                newGoButton.className = 'button';
+                newGoButton.style.cssText = 'display: inline-block !important; visibility: visible !important; opacity: 1 !important; margin-left: 10px !important;';
+                actionsArea.appendChild(newGoButton);
+            }
+        }
+    }
+    
+    // Run immediately and also after a short delay to ensure it works
+    ensureGoButton();
+    setTimeout(ensureGoButton, 100);
+    setTimeout(ensureGoButton, 500);
 });
 </script>
 {% endblock %}

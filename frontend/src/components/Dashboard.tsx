@@ -176,7 +176,7 @@ const Dashboard: React.FC = () => {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      <div className="container mx-auto px-4 pt-24 pb-8 space-y-6">
+      <div className="container mx-auto px-4 pt-32 pb-8 space-y-6">
         <Card>
           <CardContent className="p-4">
             <div className="relative">

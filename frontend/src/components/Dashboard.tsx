@@ -266,15 +266,6 @@ const Dashboard: React.FC = () => {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-xl mb-6 shadow-sm">
-            <div className="flex items-center">
-              <XCircle className="h-5 w-5 mr-3" />
-              {error}
-            </div>
-          </div>
-        )}
-
         {/* User Info */}
         <div className="bg-white rounded-2xl shadow-lg p-8 mb-8 border border-purple-100">
           <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
@@ -334,7 +325,8 @@ const Dashboard: React.FC = () => {
                 onSelect={() => handleBusSelect(bus)}
                 loading={bookingLoading}
                 selected={selectedBus?.id === bus.id}
-              />
+                isBooked={!!(currentBooking && currentBooking.bus && currentBooking.bus.id === bus.id)}
+              />  
             ))}
           </div>
         </div>

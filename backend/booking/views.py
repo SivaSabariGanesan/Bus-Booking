@@ -222,7 +222,7 @@ class BookingCreateView(generics.CreateAPIView):
 @permission_classes([IsAuthenticated])
 def current_booking(request):
     try:
-        booking = Booking.objects.filter(student=request.user, status='confirmed').order_by('-booking_date').first()
+        booking = Booking.objects.filter(student=request.user, status__in=['pending', 'confirmed']).order_by('-booking_date').first()
         if booking:
             return Response(BookingSerializer(booking).data)
         else:

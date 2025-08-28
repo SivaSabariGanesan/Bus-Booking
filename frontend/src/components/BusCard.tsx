@@ -8,9 +8,10 @@ interface BusCardProps {
   onSelect: () => void;
   loading: boolean;
   selected: boolean;
+  isBooked?: boolean;
 }
 
-const BusCard: React.FC<BusCardProps> = ({ bus, onBook, onSelect, loading, selected }) => {
+const BusCard: React.FC<BusCardProps> = ({ bus, onBook, onSelect, loading, selected, isBooked }) => {
   return (
     <div 
       className={`bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition duration-150 ease-in-out cursor-pointer ${
@@ -86,12 +87,14 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, onSelect, loading, selec
 
       <button
         onClick={onBook}
-        disabled={loading || bus.is_full}
+        disabled={loading || bus.is_full || isBooked}
         className={`w-full py-2 px-4 rounded-md font-medium transition duration-150 ease-in-out ${
           bus.is_full
             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
             : loading
             ? 'bg-blue-400 text-white cursor-not-allowed'
+            : isBooked
+            ? 'bg-green-500 text-white cursor-not-allowed'
             : 'bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500'
         }`}
       >
@@ -102,6 +105,8 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, onSelect, loading, selec
           </div>
         ) : bus.is_full ? (
           'Bus Full'
+        ) : isBooked ? (
+          'Booked'
         ) : (
           'Book This Bus'
         )}

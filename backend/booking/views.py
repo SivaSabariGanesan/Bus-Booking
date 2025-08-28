@@ -265,6 +265,8 @@ def verify_booking_otp(request):
         booking_otp.save()
         booking.status = 'confirmed'
         booking.save()
+        # Send confirmation email
+        booking.send_confirmation_email()
         return Response({'success': True, 'message': 'Booking confirmed'})
     except Booking.DoesNotExist:
         return Response({'success': False, 'error': 'Pending booking not found'}, status=404)

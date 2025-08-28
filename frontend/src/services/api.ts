@@ -165,7 +165,7 @@ export const createBooking = async (busId: number, tripDate: string, departureTi
     });
     
     if (response.success) {
-      return response.booking;
+      return response;
     } else {
       // Show more detailed error information
       const errorMessage = response.errors ? Object.values(response.errors).flat().join(', ') : 'Failed to create booking';

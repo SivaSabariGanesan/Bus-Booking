@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import Student, Bus, Booking
+from .models import Student, Bus, Booking, Stop
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -10,16 +10,23 @@ class StudentSerializer(serializers.ModelSerializer):
                  'year', 'roll_no', 'dept', 'gender', 'student_type', 'degree_type']
 
 
+class StopSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Stop
+        fields = ['id', 'stop_name', 'location', 'is_pickup', 'is_dropoff', 'is_active', 'display_name']
+
+
 class BusSerializer(serializers.ModelSerializer):
     available_seats = serializers.ReadOnlyField()
     is_full = serializers.ReadOnlyField()
     route_display = serializers.ReadOnlyField()
+    stops = StopSerializer(many=True, read_only=True)
     
     class Meta:
         model = Bus
         fields = ['id', 'bus_no', 'route_name', 'from_location', 'to_location', 
                  'route_display', 'departure_date', 'departure_time', 
-                 'capacity', 'available_seats', 'is_full']
+                 'capacity', 'available_seats', 'is_full', 'stops']
 
 
 class BookingSerializer(serializers.ModelSerializer):

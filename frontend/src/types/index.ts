@@ -12,6 +12,16 @@ export interface User {
   degree_type: string;
 }
 
+export interface Stop {
+  id: number;
+  stop_name: string;
+  location: string;
+  is_pickup: boolean;
+  is_dropoff: boolean;
+  is_active: boolean;
+  display_name: string;
+}
+
 export interface Bus {
   id: number;
   bus_no: string;
@@ -24,6 +34,7 @@ export interface Bus {
   capacity: number;
   available_seats: number;
   is_full: boolean;
+  stops: Stop[];
 }
 
 export interface Booking {

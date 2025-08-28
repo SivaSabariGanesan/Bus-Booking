@@ -70,6 +70,10 @@ class Student(AbstractBaseUser):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['first_name', 'last_name', 'roll_no']
     
+    class Meta:
+        verbose_name = 'Student'
+        verbose_name_plural = 'Students'
+    
     def __str__(self):
         return f"{self.first_name} {self.last_name} ({self.roll_no})"
     
@@ -95,6 +99,10 @@ class Bus(models.Model):
     departure_date = models.DateField(default=timezone.now, help_text="Date when this bus is available for departure")
     departure_time = models.TimeField()
     capacity = models.PositiveIntegerField()
+    
+    class Meta:
+        verbose_name = 'Bus'
+        verbose_name_plural = 'Buses'
     
     def __str__(self):
         return f"{self.bus_no} - {self.route_name}"
@@ -126,6 +134,34 @@ class Bus(models.Model):
         }
 
 
+class Stop(models.Model):
+    bus = models.ForeignKey(Bus, on_delete=models.CASCADE, related_name='stops')
+    stop_name = models.CharField(max_length=100)
+    location = models.CharField(max_length=100)
+    is_pickup = models.BooleanField(default=True, help_text="Is this a pickup point?")
+    is_dropoff = models.BooleanField(default=True, help_text="Is this a drop-off point?")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['bus', 'stop_name', 'location']
+        ordering = ['stop_name', 'location']
+        verbose_name = 'Stop'
+        verbose_name_plural = 'Stops'
+    
+    def __str__(self):
+        stop_type = []
+        if self.is_pickup:
+            stop_type.append("Pickup")
+        if self.is_dropoff:
+            stop_type.append("Drop-off")
+        return f"{self.bus.bus_no}: {self.stop_name} ({', '.join(stop_type)})"
+    
+    @property
+    def display_name(self):
+        return f"{self.stop_name} - {self.location}"
+
+
 def get_default_time():
     return timezone.now().time()
 
@@ -147,6 +183,8 @@ class Booking(models.Model):
     
     class Meta:
         unique_together = ['student', 'bus']
+        verbose_name = 'Booking'
+        verbose_name_plural = 'Bookings'
     
     def __str__(self):
         return f"{self.student.full_name} - {self.bus.bus_no}"
@@ -194,6 +232,10 @@ class BookingOTP(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     verified = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = 'Booking OTP'
+        verbose_name_plural = 'Booking OTPs'
 
     def __str__(self):
         return f"OTP for Booking {self.booking.id} - Verified: {self.verified}"

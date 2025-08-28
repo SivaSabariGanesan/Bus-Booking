@@ -26,7 +26,7 @@ const Dashboard: React.FC = () => {
   const [selectedDepartureTime, setSelectedDepartureTime] = useState("")
 
   const [searchQuery, setSearchQuery] = useState("")
-  const [activeFilter, setActiveFilter] = useState<"all" | "from_rec" | "to_rec">("all")
+  const [activeFilter, setActiveFilter] = useState<"from_rec" | "to_rec">("from_rec")
 
   useEffect(() => {
     const today = new Date()
@@ -63,7 +63,7 @@ const Dashboard: React.FC = () => {
     }
   }
 
-  const handleBookBus = async (busId: number) => {
+  const handleBookBus = async (busId: number, pickupStopId: number = 0, dropoffStopId: number = 0) => {
     if (!user) return
     
     // Check if user already has a confirmed booking
@@ -81,25 +81,38 @@ const Dashboard: React.FC = () => {
     const bus = buses.find((b) => b.id === busId)
     if (!bus || bus.is_full) return
 
+    // Get stop information
+    let fromLocation = bus.from_location || ""
+    let toLocation = bus.to_location || ""
+    
+    if (pickupStopId > 0 && dropoffStopId > 0) {
+      const pickupStop = bus.stops?.find(s => s.id === pickupStopId)
+      const dropoffStop = bus.stops?.find(s => s.id === dropoffStopId)
+      if (pickupStop && dropoffStop) {
+        fromLocation = pickupStop.location
+        toLocation = dropoffStop.location
+      }
+    }
+
     setBookingLoading(busId)
     try {
       const response = await createBooking(
         busId,
         selectedTripDate,
         selectedDepartureTime,
-        bus.from_location || "",
-        bus.to_location || "",
+        fromLocation,
+        toLocation,
       )
 
-             if (response && response.otp_sent && response.pending_booking_id) {
-         setCurrentBooking(response)
-         toast.success("OTP sent to your email. Please go to 'My Booking' to verify your OTP and complete your booking.")
-         loadData()
-       } else {
-         setCurrentBooking(response)
-         toast.success("Booking confirmed!")
-         loadData()
-       }
+      if (response && response.otp_sent && response.pending_booking_id) {
+        setCurrentBooking(response)
+        toast.success("OTP sent to your email. Please go to 'My Booking' to verify your OTP and complete your booking.")
+        loadData()
+      } else {
+        setCurrentBooking(response)
+        toast.success("Booking confirmed!")
+        loadData()
+      }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Failed to book bus"
       toast.error(errorMsg)
@@ -123,13 +136,13 @@ const Dashboard: React.FC = () => {
       (bus.to_location || "").toLowerCase().includes(query)
 
     const matchesFilter =
-      activeFilter === "all"
-        ? true
-        : activeFilter === "from_rec"
-          ? (bus.from_location || "").toLowerCase().includes("rec")
-          : activeFilter === "to_rec"
-            ? (bus.to_location || "").toLowerCase().includes("rec")
-            : true
+      activeFilter === "from_rec"
+        ? bus.stops?.some(stop => stop.is_pickup && stop.location.toLowerCase().includes("rec")) || 
+          (bus.from_location || "").toLowerCase().includes("rec")
+        : activeFilter === "to_rec"
+          ? bus.stops?.some(stop => stop.is_dropoff && stop.location.toLowerCase().includes("rec")) || 
+            (bus.to_location || "").toLowerCase().includes("rec")
+          : true
 
     return matchesQuery && matchesFilter
   })
@@ -173,22 +186,29 @@ const Dashboard: React.FC = () => {
           </CardContent>
         </Card>
 
-        <div className="flex flex-wrap gap-2">
-          {[
-            { key: "all", label: "All Buses" },
-            { key: "from_rec", label: "From REC" },
-            { key: "to_rec", label: "To REC" },
-          ].map(({ key, label }) => (
-            <Button
-              key={key}
-              variant={activeFilter === key ? "default" : "outline"}
-              size="sm"
-              onClick={() => setActiveFilter(key as any)}
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
+                 <div className="flex flex-wrap gap-2">
+           {[
+             { key: "from_rec", label: "From REC", description: "Buses departing from REC" },
+             { key: "to_rec", label: "To REC", description: "Buses arriving at REC" },
+           ].map(({ key, label, description }) => (
+             <Button
+               key={key}
+               variant={activeFilter === key ? "default" : "outline"}
+               size="sm"
+               onClick={() => setActiveFilter(key as any)}
+               title={description}
+             >
+               {label}
+             </Button>
+           ))}
+         </div>
+         
+         <p className="text-sm text-muted-foreground">
+           {activeFilter === "from_rec" 
+             ? "Showing buses where REC is a pickup point. REC will be automatically selected as your pickup location."
+             : "Showing buses where REC is a drop-off point. REC will be automatically selected as your drop-off location."
+           }
+         </p>
 
         {error && (
           <Alert variant="destructive">
@@ -230,13 +250,14 @@ const Dashboard: React.FC = () => {
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {filteredBuses.map((bus) => (
-                                     <BusCard
-                     key={bus.id}
-                     bus={bus}
-                     onBook={() => handleBookBus(bus.id)}
-                     loading={bookingLoading === bus.id}
-                     isBooked={!!(currentBooking && currentBooking.status === 'confirmed')}
-                   />
+                                                          <BusCard
+                       key={bus.id}
+                       bus={bus}
+                       onBook={(pickupStopId, dropoffStopId) => handleBookBus(bus.id, pickupStopId, dropoffStopId)}
+                       loading={bookingLoading === bus.id}
+                       isBooked={!!(currentBooking && currentBooking.status === 'confirmed')}
+                       activeFilter={activeFilter}
+                     />
                 ))}
               </div>
             )}

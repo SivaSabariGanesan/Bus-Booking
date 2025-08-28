@@ -1,0 +1,327 @@
+{% extends "unfold/layouts/base.html" %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+/* Dark mode contrast fixes */
+html[data-theme="dark"] {
+    /* Ensure all text inherits proper dark mode colors */
+    color: var(--body-fg) !important;
+}
+
+html[data-theme="dark"] * {
+    /* Force all elements to use dark mode colors unless explicitly overridden */
+    color: inherit;
+}
+
+/* Specific fixes for common problematic elements */
+html[data-theme="dark"] .theme-toggle {
+    color: var(--body-fg) !important;
+    background-color: transparent !important;
+}
+
+html[data-theme="dark"] button,
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea {
+    color: var(--body-fg) !important;
+    background-color: var(--body-bg) !important;
+}
+
+html[data-theme="dark"] a {
+    color: var(--link-fg) !important;
+}
+
+html[data-theme="dark"] a:hover {
+    color: var(--link-hover-color) !important;
+}
+
+/* Fix for any white text that might appear */
+html[data-theme="dark"] .text-white,
+html[data-theme="dark"] [class*="text-white"] {
+    color: var(--body-fg) !important;
+}
+
+/* Fix for form elements */
+html[data-theme="dark"] input[type="text"],
+html[data-theme="dark"] input[type="email"],
+html[data-theme="dark"] input[type="password"],
+html[data-theme="dark"] input[type="number"],
+html[data-theme="dark"] input[type="search"],
+html[data-theme="dark"] input[type="url"],
+html[data-theme="dark"] input[type="tel"],
+html[data-theme="dark"] textarea {
+    color: var(--body-fg) !important;
+    background-color: var(--body-bg) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Fix for select dropdowns */
+html[data-theme="dark"] select {
+    color: var(--body-fg) !important;
+    background-color: var(--body-bg) !important;
+    border-color: var(--border-color) !important;
+}
+
+html[data-theme="dark"] select option {
+    color: var(--body-fg) !important;
+    background-color: var(--body-bg) !important;
+}
+
+/* Specific fixes for Unfold theme dropdowns */
+html[data-theme="dark"] select:not([class*=bg-none]):not([multiple]) {
+    background-color: var(--body-bg) !important;
+    color: var(--body-fg) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Fix for any dropdown elements */
+html[data-theme="dark"] .dropdown,
+html[data-theme="dark"] [class*="dropdown"],
+html[data-theme="dark"] .select2-container,
+html[data-theme="dark"] [class*="select"] {
+    background-color: var(--body-bg) !important;
+    color: var(--body-fg) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Fix for dropdown options and items */
+html[data-theme="dark"] .dropdown-menu,
+html[data-theme="dark"] .dropdown-item,
+html[data-theme="dark"] .select2-dropdown,
+html[data-theme="dark"] .select2-results__option {
+    background-color: var(--body-bg) !important;
+    color: var(--body-fg) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Fix for any element with white background */
+html[data-theme="dark"] [style*="background: white"],
+html[data-theme="dark"] [style*="background: #fff"],
+html[data-theme="dark"] [style*="background: #ffffff"],
+html[data-theme="dark"] [style*="background-color: white"],
+html[data-theme="dark"] [style*="background-color: #fff"],
+html[data-theme="dark"] [style*="background-color: #ffffff"] {
+    background-color: var(--body-bg) !important;
+}
+
+/* Fix for any remaining white backgrounds */
+html[data-theme="dark"] .bg-white,
+html[data-theme="dark"] [class*="bg-white"] {
+    background-color: var(--body-bg) !important;
+}
+
+/* Fix for table elements */
+html[data-theme="dark"] table,
+html[data-theme="dark"] th,
+html[data-theme="dark"] td {
+    color: var(--body-fg) !important;
+    background-color: var(--body-bg) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Fix for any tooltips or popups */
+html[data-theme="dark"] .tooltip,
+html[data-theme="dark"] .popup,
+html[data-theme="dark"] [class*="tooltip"],
+html[data-theme="dark"] [class*="popup"] {
+    color: var(--body-fg) !important;
+    background-color: var(--body-bg) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Fix for any icons or symbols */
+html[data-theme="dark"] .material-symbols-outlined,
+html[data-theme="dark"] [class*="icon"],
+html[data-theme="dark"] [class*="symbol"] {
+    color: var(--body-fg) !important;
+}
+
+/* Ensure proper contrast for all text elements */
+html[data-theme="dark"] h1,
+html[data-theme="dark"] h2,
+html[data-theme="dark"] h3,
+html[data-theme="dark"] h4,
+html[data-theme="dark"] h5,
+html[data-theme="dark"] h6,
+html[data-theme="dark"] p,
+html[data-theme="dark"] span,
+html[data-theme="dark"] div,
+html[data-theme="dark"] label {
+    color: var(--body-fg) !important;
+}
+
+/* Comprehensive fix for all white text issues */
+html[data-theme="dark"] * {
+    color: var(--body-fg) !important;
+}
+
+/* Fix for specific white text classes */
+html[data-theme="dark"] .text-white,
+html[data-theme="dark"] [class*="text-white"],
+html[data-theme="dark"] .text-light,
+html[data-theme="dark"] [class*="text-light"] {
+    color: var(--body-fg) !important;
+}
+
+/* Fix for form inputs and placeholders */
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder,
+html[data-theme="dark"] input::-webkit-input-placeholder,
+html[data-theme="dark"] textarea::-webkit-input-placeholder {
+    color: var(--body-quiet-color) !important;
+}
+
+/* Fix for any remaining white backgrounds */
+html[data-theme="dark"] .bg-white,
+html[data-theme="dark"] [class*="bg-white"],
+html[data-theme="dark"] .bg-light,
+html[data-theme="dark"] [class*="bg-light"] {
+    background-color: var(--body-bg) !important;
+}
+
+/* Fix for buttons and interactive elements */
+html[data-theme="dark"] .btn,
+html[data-theme="dark"] button,
+html[data-theme="dark"] input[type="submit"],
+html[data-theme="dark"] input[type="button"],
+html[data-theme="dark"] input[type="reset"] {
+    color: var(--body-fg) !important;
+    background-color: var(--body-bg) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Fix for any text that might be explicitly set to white */
+html[data-theme="dark"] [style*="color: white"],
+html[data-theme="dark"] [style*="color: #fff"],
+html[data-theme="dark"] [style*="color: #ffffff"] {
+    color: var(--body-fg) !important;
+}
+
+/* Fix for any backgrounds that might be explicitly set to white */
+html[data-theme="dark"] [style*="background-color: white"],
+html[data-theme="dark"] [style*="background-color: #fff"],
+html[data-theme="dark"] [style*="background-color: #ffffff"] {
+    background-color: var(--body-bg) !important;
+}
+
+/* Allow specific semantic color classes to override */
+html[data-theme="dark"] .text-primary,
+html[data-theme="dark"] .text-success,
+html[data-theme="dark"] .text-warning,
+html[data-theme="dark"] .text-danger,
+html[data-theme="dark"] .text-info,
+html[data-theme="dark"] .text-muted {
+    color: inherit !important;
+}
+
+/* Fix for any remaining elements that might have white text */
+html[data-theme="dark"] span,
+html[data-theme="dark"] div,
+html[data-theme="dark"] p,
+html[data-theme="dark"] label,
+html[data-theme="dark"] strong,
+html[data-theme="dark"] em,
+html[data-theme="dark"] b,
+html[data-theme="dark"] i {
+    color: var(--body-fg) !important;
+}
+
+/* Additional fixes for Unfold theme specific elements */
+html[data-theme="dark"] .bg-white,
+html[data-theme="dark"] [class*="bg-white"],
+html[data-theme="dark"] [class*="bg-gray-50"],
+html[data-theme="dark"] [class*="bg-gray-100"],
+html[data-theme="dark"] [class*="bg-gray-200"] {
+    background-color: var(--body-bg) !important;
+}
+
+/* Force all form elements to use dark theme */
+html[data-theme="dark"] form *,
+html[data-theme="dark"] .form-control,
+html[data-theme="dark"] .form-select,
+html[data-theme="dark"] .form-input {
+    background-color: var(--body-bg) !important;
+    color: var(--body-fg) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Fix for any remaining white elements */
+html[data-theme="dark"] *[style*="background: white"],
+html[data-theme="dark"] *[style*="background: #fff"],
+html[data-theme="dark"] *[style*="background: #ffffff"] {
+    background-color: var(--body-bg) !important;
+}
+
+/* Override Unfold theme's white background for select elements */
+html[data-theme="dark"] select:not([class*=bg-none]):not([multiple]) {
+    background-color: var(--body-bg) !important;
+    background-image: none !important;
+}
+
+/* Override table select elements specifically */
+html[data-theme="dark"] table select {
+    background-color: var(--body-bg) !important;
+    background-image: none !important;
+    color: var(--body-fg) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Force all select elements to use dark theme */
+html[data-theme="dark"] select {
+    background-color: var(--body-bg) !important;
+    background-image: none !important;
+    color: var(--body-fg) !important;
+    border-color: var(--border-color) !important;
+}
+
+/* Override any background images that might be white */
+html[data-theme="dark"] *[style*="background-image"] {
+    background-color: var(--body-bg) !important;
+}
+
+/* Force override for any element with white background */
+html[data-theme="dark"] * {
+    background-color: var(--body-bg) !important;
+}
+
+/* Allow specific elements to override if needed */
+html[data-theme="dark"] .bg-primary,
+html[data-theme="dark"] .bg-success,
+html[data-theme="dark"] .bg-warning,
+html[data-theme="dark"] .bg-danger,
+html[data-theme="dark"] .bg-info {
+    background-color: inherit !important;
+}
+</style>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Theme toggle functionality
+    const themeToggle = document.createElement('button');
+    themeToggle.className = 'theme-toggle';
+    themeToggle.innerHTML = '🌙';
+    themeToggle.title = 'Toggle Theme';
+    
+    // Get current theme from localStorage or default to light
+    let currentTheme = localStorage.getItem('admin-theme') || 'light';
+    document.documentElement.setAttribute('data-theme', currentTheme);
+    updateToggleIcon(currentTheme);
+    
+    // Add toggle button to page
+    document.body.appendChild(themeToggle);
+    
+    // Toggle theme on click
+    themeToggle.addEventListener('click', function() {
+        currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+        localStorage.setItem('admin-theme', currentTheme);
+        updateToggleIcon(currentTheme);
+    });
+    
+    function updateToggleIcon(theme) {
+        themeToggle.innerHTML = theme === 'light' ? '🌙' : '☀️';
+        themeToggle.title = theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode';
+    }
+});
+</script>
+{% endblock %}

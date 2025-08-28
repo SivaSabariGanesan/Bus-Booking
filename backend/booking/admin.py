@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils import timezone
 from datetime import timedelta
-from .models import Student, Bus, Booking
+from .models import Student, Bus, Booking, BookingOTP
 
 
 class DepartureDateFilter(admin.SimpleListFilter):
@@ -45,14 +45,15 @@ class BusAdminForm(forms.ModelForm):
         model = Bus
         fields = '__all__'
 
+
 @admin.register(Student)
 class StudentAdmin(UserAdmin):
-    list_display = ('email', 'first_name', 'last_name', 'roll_no', 'dept', 'year', 'is_active')
+    list_display = ('email', 'first_name', 'last_name', 'roll_no', 'dept', 'year', 'is_active', 'has_active_booking')
     list_filter = ('year', 'dept', 'gender', 'student_type', 'degree_type', 'is_active')
     search_fields = ('email', 'first_name', 'last_name', 'roll_no')
     ordering = ('email',)
     filter_horizontal = ()
-    readonly_fields = ('last_login', 'date_joined')
+    readonly_fields = ('last_login', 'date_joined', 'has_active_booking')
     
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
@@ -77,36 +78,33 @@ class StudentAdmin(UserAdmin):
         }),
     )
 
+    def has_active_booking(self, obj):
+        return obj.has_active_booking()
+    has_active_booking.boolean = True
+    has_active_booking.short_description = 'Active Booking'
+
 
 @admin.register(Bus)
 class BusAdmin(admin.ModelAdmin):
     form = BusAdminForm
-    list_display = ('bus_no', 'route_name', 'from_location', 'to_location', 'departure_date', 'departure_time', 'capacity', 'available_seats')
+    list_display = ('bus_no', 'route_name', 'from_location', 'to_location', 'departure_date', 'departure_time', 'capacity', 'available_seats', 'is_full')
     list_filter = (DepartureDateFilter, 'route_name', 'from_location', 'to_location')
     search_fields = ('bus_no', 'route_name', 'from_location', 'to_location')
     ordering = ('bus_no',)
     actions = ['set_today_departure', 'set_tomorrow_departure', 'set_next_week_departure']
-    readonly_fields = ('departure_info_display',)
+    readonly_fields = ('available_seats', 'is_full')
     
     fieldsets = (
         ('Basic Information', {
             'fields': ('bus_no', 'route_name', 'from_location', 'to_location')
         }),
         ('Schedule', {
-            'fields': ('departure_date', 'departure_time', 'departure_info_display')
+            'fields': ('departure_date', 'departure_time')
         }),
         ('Capacity', {
             'fields': ('capacity',)
         }),
     )
-    
-    def departure_info_display(self, obj):
-        """Display formatted departure information"""
-        if obj.departure_date and obj.departure_time:
-            return f"<strong>{obj.departure_date.strftime('%A, %B %d, %Y')} at {obj.departure_time.strftime('%I:%M %p')}</strong>"
-        return "Not set"
-    departure_info_display.short_description = "Departure Details"
-    departure_info_display.allow_tags = True
     
     def set_today_departure(self, request, queryset):
         """Set selected buses to depart today"""
@@ -133,17 +131,26 @@ class BusAdmin(admin.ModelAdmin):
     set_next_week_departure.short_description = "Set buses to depart next Monday"
 
 
+class BookingOTPInline(admin.TabularInline):
+    model = BookingOTP
+    extra = 0
+    readonly_fields = ('otp_code', 'created_at', 'expires_at', 'verified')
+    can_delete = False
+
+
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
     list_display = ('student', 'bus', 'booking_date', 'trip_date', 'departure_time', 'from_location', 'to_location', 'status', 'otp_code')
     list_filter = ('bus__route_name', 'trip_date', 'departure_time', 'booking_date', 'status')
     search_fields = ('student__email', 'student__first_name', 'student__last_name', 'bus__bus_no', 'from_location', 'to_location')
     ordering = ('-booking_date',)
+    readonly_fields = ('booking_date', 'otp_code')
+    inlines = [BookingOTPInline]
     
     fieldsets = (
         ('Basic Info', {'fields': ('student', 'bus')}),
         ('Trip Details', {'fields': ('trip_date', 'departure_time', 'from_location', 'to_location')}),
-        ('System Info', {'fields': ('booking_date',)}),
+        ('System Info', {'fields': ('booking_date', 'status')}),
     )
     
     def get_readonly_fields(self, request, obj=None):
@@ -156,3 +163,17 @@ class BookingAdmin(admin.ModelAdmin):
             return obj.otp.otp_code
         return '-'
     otp_code.short_description = 'OTP Code'
+
+
+@admin.register(BookingOTP)
+class BookingOTPAdmin(admin.ModelAdmin):
+    list_display = ('booking', 'otp_code', 'created_at', 'expires_at', 'verified', 'is_expired')
+    list_filter = ('verified', 'created_at', 'expires_at')
+    search_fields = ('booking__student__email', 'booking__student__first_name', 'otp_code')
+    ordering = ('-created_at',)
+    readonly_fields = ('otp_code', 'created_at', 'expires_at')
+    
+    def is_expired(self, obj):
+        return timezone.now() > obj.expires_at
+    is_expired.boolean = True
+    is_expired.short_description = 'Expired'

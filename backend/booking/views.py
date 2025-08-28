@@ -3,12 +3,18 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from django.contrib.auth import login, logout
-from .models import Student, Bus, Booking
+from .models import Student, Bus, Booking, BookingOTP
 from .serializers import (
     StudentSerializer, BusSerializer, BookingSerializer, 
     CreateBookingSerializer, LoginSerializer
 )
 from django.views.decorators.csrf import csrf_exempt
+import random
+from django.utils import timezone
+from datetime import timedelta
+from django.core.mail import send_mail
+from django.conf import settings
+from django.core.exceptions import MultipleObjectsReturned
 
 
 @csrf_exempt
@@ -152,14 +158,11 @@ class BookingCreateView(generics.CreateAPIView):
         print(f"Request user: {request.user.email}")
         print(f"Request data: {request.data}")
         print(f"Request data type: {type(request.data)}")
-        
         serializer = self.get_serializer(data=request.data)
         print(f"Serializer created: {serializer}")
-        
         print("=== CALLING SERIALIZER VALIDATION ===")
         is_valid = serializer.is_valid()
         print(f"Serializer is_valid result: {is_valid}")
-        
         if not is_valid:
             print(f"Validation errors: {serializer.errors}")
             print(f"Validation errors type: {type(serializer.errors)}")
@@ -168,14 +171,12 @@ class BookingCreateView(generics.CreateAPIView):
                 'errors': serializer.errors,
                 'received_data': request.data  # Include received data for debugging
             }, status=status.HTTP_400_BAD_REQUEST)
-        
         print("=== SERIALIZER VALIDATION PASSED ===")
         print(f"Validated data: {serializer.validated_data}")
-        
         try:
             bus = Bus.objects.get(id=serializer.validated_data['bus_id'])
             print(f"Found bus: {bus.bus_no}")  # Debug log
-            
+            # Create booking as pending
             booking = Booking.objects.create(
                 student=request.user,
                 bus=bus,
@@ -183,15 +184,26 @@ class BookingCreateView(generics.CreateAPIView):
                 departure_time=serializer.validated_data['departure_time'],
                 from_location=serializer.validated_data['from_location'],
                 to_location=serializer.validated_data['to_location'],
+                status='pending',
             )
-            
-            print(f"Booking created successfully: {booking.id}")  # Debug log
-            
+            # Generate OTP
+            otp_code = str(random.randint(100000, 999999))
+            expires_at = timezone.now() + timedelta(minutes=10)
+            BookingOTP.objects.create(
+                booking=booking,
+                otp_code=otp_code,
+                expires_at=expires_at,
+            )
+            # Send OTP email
+            subject = 'Your Bus Booking OTP'
+            message = f"Your OTP for confirming your bus booking is: {otp_code}\nThis OTP is valid for 10 minutes."
+            send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [request.user.email], fail_silently=False)
+            print(f"OTP {otp_code} sent to {request.user.email}")
             return Response({
                 'success': True,
-                'booking': BookingSerializer(booking).data
+                'otp_sent': True,
+                'pending_booking_id': booking.id
             }, status=status.HTTP_201_CREATED)
-            
         except Bus.DoesNotExist:
             print(f"Bus not found: {serializer.validated_data['bus_id']}")  # Debug log
             return Response({
@@ -210,10 +222,13 @@ class BookingCreateView(generics.CreateAPIView):
 @permission_classes([IsAuthenticated])
 def current_booking(request):
     try:
-        booking = Booking.objects.get(student=request.user)
-        return Response(BookingSerializer(booking).data)
-    except Booking.DoesNotExist:
-        return Response({'booking': None})
+        booking = Booking.objects.filter(student=request.user, status='confirmed').order_by('-booking_date').first()
+        if booking:
+            return Response(BookingSerializer(booking).data)
+        else:
+            return Response({'booking': None})
+    except Exception as e:
+        return Response({'booking': None, 'error': str(e)}, status=500)
 
 
 @api_view(['DELETE'])
@@ -228,3 +243,30 @@ def cancel_booking(request):
             'success': False, 
             'message': 'No active booking found'
         }, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['POST'])
+def verify_booking_otp(request):
+    booking_id = request.data.get('pending_booking_id')
+    otp = request.data.get('otp')
+    if not booking_id or not otp:
+        return Response({'success': False, 'error': 'Missing booking ID or OTP'}, status=400)
+    try:
+        booking = Booking.objects.get(id=booking_id, status='pending')
+        booking_otp = booking.otp
+        if booking_otp.verified:
+            return Response({'success': False, 'error': 'OTP already used'}, status=400)
+        if timezone.now() > booking_otp.expires_at:
+            return Response({'success': False, 'error': 'OTP expired'}, status=400)
+        if booking_otp.otp_code != otp:
+            return Response({'success': False, 'error': 'Invalid OTP'}, status=400)
+        # Mark OTP as verified and booking as confirmed
+        booking_otp.verified = True
+        booking_otp.save()
+        booking.status = 'confirmed'
+        booking.save()
+        return Response({'success': True, 'message': 'Booking confirmed'})
+    except Booking.DoesNotExist:
+        return Response({'success': False, 'error': 'Pending booking not found'}, status=404)
+    except Exception as e:
+        return Response({'success': False, 'error': str(e)}, status=500)

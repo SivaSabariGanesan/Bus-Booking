@@ -1,10 +1,9 @@
 "use client"
 
-import type React from "react"
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { LogOut, Bus, CheckCircle, XCircle } from "lucide-react"
 import type { Bus as BusType, Booking } from "../types"
-import { logout, getBuses, createBooking, getCurrentBooking, cancelBooking, testBookingData, debugRequest } from '../services/api'
+import { logout, getBuses, createBooking, getCurrentBooking, cancelBooking, testBookingData, debugRequest, verifyBookingOtp } from '../services/api'
 import { useAuth } from "../context/AuthContext"
 import BusCard from "./BusCard"
 import BookingCard from "./BookingCard"
@@ -20,6 +19,11 @@ const Dashboard: React.FC = () => {
   const [selectedBus, setSelectedBus] = useState<BusType | null>(null)
   const [selectedTripDate, setSelectedTripDate] = useState("")
   const [selectedDepartureTime, setSelectedDepartureTime] = useState("")
+  const [showOtpModal, setShowOtpModal] = useState(false)
+  const [pendingBookingId, setPendingBookingId] = useState<number | null>(null)
+  const [otpInput, setOtpInput] = useState("")
+  const [otpError, setOtpError] = useState("")
+  const [otpLoading, setOtpLoading] = useState(false)
 
   // Calculate default trip date (next Monday) and set default departure time
   useEffect(() => {
@@ -155,17 +159,24 @@ const Dashboard: React.FC = () => {
       }
 
       try {
-        const booking = await createBooking(
+        const response = await createBooking(
           busId,
           tripDateStr,
           departureTime,
           bus.from_location || "",
           bus.to_location || "",
         )
-        setCurrentBooking(booking)
-        toast.success("Booking confirmed! Check your email for details.")
-        setSelectedBus(null)
-        loadData()
+        if (response && response.otp_sent && response.pending_booking_id) {
+          setPendingBookingId(response.pending_booking_id)
+          setShowOtpModal(true)
+          toast.success("OTP sent to your email. Please verify to confirm booking.")
+        } else {
+          // fallback for old flow
+          setCurrentBooking(response)
+          toast.success("Booking confirmed! Check your email for details.")
+          setSelectedBus(null)
+          loadData()
+        }
       } catch (error) {
         let errorMsg = error instanceof Error ? error.message : String(error)
         // Extract the actual message if it's wrapped in a list/object
@@ -340,6 +351,55 @@ const Dashboard: React.FC = () => {
           </div>
         )}
       </div>
+      {showOtpModal && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
+          <div className="bg-white rounded-xl shadow-lg p-8 max-w-sm w-full">
+            <h2 className="text-xl font-bold mb-4">Enter OTP</h2>
+            <p className="mb-2 text-gray-600">An OTP has been sent to your email. Please enter it below to confirm your booking.</p>
+            <input
+              type="text"
+              value={otpInput}
+              onChange={e => setOtpInput(e.target.value)}
+              className="w-full border border-gray-300 rounded-md px-4 py-2 mb-3 focus:outline-none focus:ring-2 focus:ring-purple-400"
+              placeholder="Enter OTP"
+              maxLength={6}
+            />
+            {otpError && <div className="text-red-600 mb-2">{otpError}</div>}
+            <div className="flex justify-end space-x-2">
+              <button
+                className="px-4 py-2 rounded-md bg-gray-200 text-gray-700"
+                onClick={() => { setShowOtpModal(false); setOtpInput(""); setOtpError(""); }}
+                disabled={otpLoading}
+              >Cancel</button>
+              <button
+                className="px-4 py-2 rounded-md bg-purple-600 text-white font-semibold"
+                onClick={async () => {
+                  setOtpLoading(true)
+                  setOtpError("")
+                  try {
+                    if (!pendingBookingId) return
+                    const result = await verifyBookingOtp(pendingBookingId, otpInput)
+                    if (result.success) {
+                      toast.success("Booking confirmed!")
+                      setShowOtpModal(false)
+                      setOtpInput("")
+                      setPendingBookingId(null)
+                      loadData()
+                    } else {
+                      setOtpError(result.error || "Invalid OTP")
+                    }
+                  } catch (err) {
+                    setOtpError("Invalid or expired OTP")
+                  } finally {
+                    setOtpLoading(false)
+                  }
+                }}
+                disabled={otpLoading || otpInput.length !== 6}
+              >{otpLoading ? "Verifying..." : "Verify"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

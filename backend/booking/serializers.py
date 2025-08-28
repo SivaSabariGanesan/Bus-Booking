@@ -25,11 +25,11 @@ class BusSerializer(serializers.ModelSerializer):
 class BookingSerializer(serializers.ModelSerializer):
     student = StudentSerializer(read_only=True)
     bus = BusSerializer(read_only=True)
+    status = serializers.CharField(read_only=True)
     
     class Meta:
         model = Booking
-        fields = ['id', 'student', 'bus', 'booking_date', 'trip_date', 'departure_time', 
-                 'from_location', 'to_location']
+        fields = ['id', 'student', 'bus', 'booking_date', 'trip_date', 'departure_time', 'from_location', 'to_location', 'status']
 
 
 class CreateBookingSerializer(serializers.Serializer):

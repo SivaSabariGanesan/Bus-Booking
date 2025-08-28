@@ -138,6 +138,12 @@ class Booking(models.Model):
     to_location = models.CharField(max_length=100, default="")
     is_return_trip = models.BooleanField(default=True)
     
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('confirmed', 'Confirmed'),
+    ]
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
+    
     class Meta:
         unique_together = ['student', 'bus']
     
@@ -179,3 +185,14 @@ class Booking(models.Model):
             [self.student.email],
             fail_silently=False,
         )
+
+
+class BookingOTP(models.Model):
+    booking = models.OneToOneField(Booking, on_delete=models.CASCADE, related_name='otp')
+    otp_code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    verified = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"OTP for Booking {self.booking.id} - Verified: {self.verified}"

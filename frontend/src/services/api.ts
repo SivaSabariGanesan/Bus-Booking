@@ -196,3 +196,11 @@ export const cancelBooking = async () => {
   }
   return response;
 };
+
+export const verifyBookingOtp = async (pendingBookingId: number, otp: string) => {
+  const response = await apiCall('/bookings/verify-otp/', {
+    method: 'POST',
+    body: JSON.stringify({ pending_booking_id: pendingBookingId, otp }),
+  });
+  return response;
+};

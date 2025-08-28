@@ -135,8 +135,8 @@ class BusAdmin(admin.ModelAdmin):
 
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
-    list_display = ('student', 'bus', 'booking_date', 'trip_date', 'departure_time', 'from_location', 'to_location')
-    list_filter = ('bus__route_name', 'trip_date', 'departure_time', 'booking_date')
+    list_display = ('student', 'bus', 'booking_date', 'trip_date', 'departure_time', 'from_location', 'to_location', 'status', 'otp_code')
+    list_filter = ('bus__route_name', 'trip_date', 'departure_time', 'booking_date', 'status')
     search_fields = ('student__email', 'student__first_name', 'student__last_name', 'bus__bus_no', 'from_location', 'to_location')
     ordering = ('-booking_date',)
     
@@ -150,3 +150,9 @@ class BookingAdmin(admin.ModelAdmin):
         if obj:
             return ('booking_date',)
         return ()
+
+    def otp_code(self, obj):
+        if hasattr(obj, 'otp') and obj.otp:
+            return obj.otp.otp_code
+        return '-'
+    otp_code.short_description = 'OTP Code'

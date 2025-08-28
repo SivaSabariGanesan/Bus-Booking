@@ -1,13 +1,12 @@
 import React, { useEffect, useState } from 'react'
 import Navbar from './Navbar'
-import { getCurrentBooking, cancelBooking } from '../services/api'
+import { getCurrentBooking } from '../services/api'
 import type { Booking } from '../types'
 import BookingCard from './BookingCard'
 
 const MyBooking: React.FC = () => {
   const [booking, setBooking] = useState<Booking | null>(null)
   const [loading, setLoading] = useState(true)
-  const [actionLoading, setActionLoading] = useState(false)
 
   const load = async () => {
     try {
@@ -31,7 +30,10 @@ const MyBooking: React.FC = () => {
         {loading ? (
           <div className="text-gray-600">Loading...</div>
         ) : booking ? (
-          <BookingCard booking={booking} onCancel={async () => { setActionLoading(true); await cancelBooking(); await load(); setActionLoading(false) }} loading={actionLoading} />
+          <BookingCard 
+            booking={booking} 
+            onBookingConfirmed={load}
+          />
         ) : (
           <div className="bg-white p-6 rounded-xl border shadow-sm text-gray-600">No active booking.</div>
         )}

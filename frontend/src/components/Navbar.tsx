@@ -4,6 +4,7 @@ import React, { useState } from "react"
 import { Link } from "react-router-dom"
 import { MenuIcon, X } from "lucide-react"
 import { useAuth } from "../context/AuthContext"
+import { logout } from "../services/api"
 
 interface HoveredLinkProps {
   children: React.ReactNode
@@ -31,6 +32,18 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
   const [active, setActive] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const { user } = useAuth()
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+      // The logout function should handle clearing auth state
+      window.location.href = '/login'
+    } catch (error) {
+      console.error('Logout failed:', error)
+      // Force redirect even if logout fails
+      window.location.href = '/login'
+    }
+  }
 
   return (
     <>
@@ -130,6 +143,14 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                        <Link to="/my-booking" className="text-gray-700 hover:text-black transition-colors duration-200">
                          My Booking
                        </Link>
+                     </div>
+                     <div className="py-2">
+                       <button
+                         onClick={handleLogout}
+                         className="text-gray-700 hover:text-red-600 transition-colors duration-200 w-full text-left"
+                       >
+                         Logout
+                       </button>
                      </div>
                    </div>
                 </div>

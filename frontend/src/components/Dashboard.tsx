@@ -7,9 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
 import { Alert, AlertDescription } from "../components/ui/alert"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../components/ui/dialog"
 import type { Bus as BusType, Booking } from "../types"
-import { getBuses, createBooking, getCurrentBooking, verifyBookingOtp } from "../services/api"
+import { getBuses, createBooking, getCurrentBooking } from "../services/api"
 import { useAuth } from "../context/AuthContext"
 import BusCard from "./BusCard"
 import { toast } from "sonner"
@@ -19,16 +18,13 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth()
   const [buses, setBuses] = useState<BusType[]>([])
   const [currentBooking, setCurrentBooking] = useState<Booking | null>(null)
+  const [hasPendingBooking, setHasPendingBooking] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
-  const [bookingLoading, setBookingLoading] = useState(false)
+  const [bookingLoading, setBookingLoading] = useState<number | null>(null)
   const [selectedTripDate, setSelectedTripDate] = useState("")
   const [selectedDepartureTime, setSelectedDepartureTime] = useState("")
-  const [showOtpModal, setShowOtpModal] = useState(false)
-  const [pendingBookingId, setPendingBookingId] = useState<number | null>(null)
-  const [otpInput, setOtpInput] = useState("")
-  const [otpError, setOtpError] = useState("")
-  const [otpLoading, setOtpLoading] = useState(false)
+
   const [searchQuery, setSearchQuery] = useState("")
   const [activeFilter, setActiveFilter] = useState<"all" | "from_rec" | "to_rec">("all")
 
@@ -53,6 +49,13 @@ const Dashboard: React.FC = () => {
       const [busesData, bookingData] = await Promise.all([getBuses(), getCurrentBooking()])
       setBuses(busesData)
       setCurrentBooking(bookingData)
+      
+      // Check if there's a pending booking
+      if (bookingData && bookingData.status === 'pending') {
+        setHasPendingBooking(true)
+      } else {
+        setHasPendingBooking(false)
+      }
     } catch (err) {
       setError("Failed to load data")
     } finally {
@@ -63,16 +66,22 @@ const Dashboard: React.FC = () => {
   const handleBookBus = async (busId: number) => {
     if (!user) return
     
-    // Check if user already has a booking
-    if (currentBooking) {
+    // Check if user already has a confirmed booking
+    if (currentBooking && currentBooking.status === 'confirmed') {
       toast.error("You already have an active booking. You can only have one booking at a time.")
+      return
+    }
+
+    // Check if user has a pending booking
+    if (hasPendingBooking) {
+      toast.error("You have a pending booking that requires OTP verification. Please complete your current booking first.")
       return
     }
 
     const bus = buses.find((b) => b.id === busId)
     if (!bus || bus.is_full) return
 
-    setBookingLoading(true)
+    setBookingLoading(busId)
     try {
       const response = await createBooking(
         busId,
@@ -82,48 +91,27 @@ const Dashboard: React.FC = () => {
         bus.to_location || "",
       )
 
-      if (response && response.otp_sent && response.pending_booking_id) {
-        setPendingBookingId(response.pending_booking_id)
-        setShowOtpModal(true)
-        toast.success("OTP sent to your email")
-      } else {
-        setCurrentBooking(response)
-        toast.success("Booking confirmed!")
-        loadData()
-      }
+             if (response && response.otp_sent && response.pending_booking_id) {
+         setCurrentBooking(response)
+         toast.success("OTP sent to your email. Please go to 'My Booking' to verify your OTP and complete your booking.")
+         loadData()
+       } else {
+         setCurrentBooking(response)
+         toast.success("Booking confirmed!")
+         loadData()
+       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : "Failed to book bus"
       toast.error(errorMsg)
       setError(errorMsg)
     } finally {
-      setBookingLoading(false)
+      setBookingLoading(null)
     }
   }
 
 
 
-  const handleOtpVerification = async () => {
-    if (!pendingBookingId) return
 
-    setOtpLoading(true)
-    setOtpError("")
-    try {
-      const result = await verifyBookingOtp(pendingBookingId, otpInput)
-      if (result.success) {
-        toast.success("Booking confirmed!")
-        setShowOtpModal(false)
-        setOtpInput("")
-        setPendingBookingId(null)
-        loadData()
-      } else {
-        setOtpError(result.error || "Invalid OTP")
-      }
-    } catch (err) {
-      setOtpError("Invalid or expired OTP")
-    } finally {
-      setOtpLoading(false)
-    }
-  }
 
   const filteredBuses = buses.filter((bus) => {
     const query = searchQuery.trim().toLowerCase()
@@ -209,15 +197,25 @@ const Dashboard: React.FC = () => {
           </Alert>
         )}
 
-        {currentBooking && (
-          <Alert>
-            <CheckCircle className="h-4 w-4" />
-            <AlertDescription>
-              You have an active booking. You can only have one booking at a time. 
-              View your booking details in the "My Booking" section.
-            </AlertDescription>
-          </Alert>
-        )}
+                 {currentBooking && currentBooking.status === 'confirmed' && (
+           <Alert>
+             <CheckCircle className="h-4 w-4" />
+             <AlertDescription>
+               You have an active booking. You can only have one booking at a time. 
+               View your booking details in the "My Booking" section.
+             </AlertDescription>
+           </Alert>
+         )}
+
+         {hasPendingBooking && (
+           <Alert>
+             <CheckCircle className="h-4 w-4" />
+             <AlertDescription>
+               You have a pending booking that requires OTP verification. 
+               Please go to "My Booking" to complete your booking.
+             </AlertDescription>
+           </Alert>
+         )}
 
         <Card>
           <CardHeader>
@@ -236,8 +234,8 @@ const Dashboard: React.FC = () => {
                      key={bus.id}
                      bus={bus}
                      onBook={() => handleBookBus(bus.id)}
-                     loading={bookingLoading}
-                     isBooked={!!currentBooking}
+                     loading={bookingLoading === bus.id}
+                     isBooked={!!(currentBooking && currentBooking.status === 'confirmed')}
                    />
                 ))}
               </div>
@@ -248,42 +246,7 @@ const Dashboard: React.FC = () => {
 
       </div>
 
-      <Dialog open={showOtpModal} onOpenChange={setShowOtpModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Enter OTP</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              An OTP has been sent to your email. Please enter it below to confirm your booking.
-            </p>
-            <Input
-              type="text"
-              value={otpInput}
-              onChange={(e) => setOtpInput(e.target.value)}
-              placeholder="Enter 6-digit OTP"
-              maxLength={6}
-            />
-            {otpError && <p className="text-sm text-destructive">{otpError}</p>}
-            <div className="flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowOtpModal(false)
-                  setOtpInput("")
-                  setOtpError("")
-                }}
-                disabled={otpLoading}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleOtpVerification} disabled={otpLoading || otpInput.length !== 6}>
-                {otpLoading ? "Verifying..." : "Verify"}
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      
     </div>
   )
 }

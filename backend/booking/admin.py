@@ -59,7 +59,7 @@ class StopInline(admin.TabularInline):
 class StudentAdmin(ImportExportModelAdmin, UserAdmin):
     resource_class = StudentResource
     list_display = ('email', 'first_name', 'last_name', 'roll_no', 'dept', 'year', 'is_active', 'has_active_booking')
-    list_filter = ('year', 'dept', 'gender', 'student_type', 'degree_type', 'is_active')
+    list_filter = ('year', 'dept', 'gender', 'is_active')
     search_fields = ('email', 'first_name', 'last_name', 'roll_no')
     ordering = ('email',)
     filter_horizontal = ()
@@ -71,7 +71,7 @@ class StudentAdmin(ImportExportModelAdmin, UserAdmin):
             'fields': ('first_name', 'last_name', 'phone_number', 'gender')
         }),
         ('Academic info', {
-            'fields': ('roll_no', 'dept', 'year', 'student_type', 'degree_type')
+            'fields': ('roll_no', 'dept', 'year')
         }),
         ('Permissions', {
             'fields': ('is_active', 'is_staff', 'is_superuser'),
@@ -83,8 +83,7 @@ class StudentAdmin(ImportExportModelAdmin, UserAdmin):
         (None, {
             'classes': ('wide',),
             'fields': ('email', 'password1', 'password2', 'first_name', 'last_name', 
-                      'phone_number', 'roll_no', 'dept', 'year', 'gender', 
-                      'student_type', 'degree_type'),
+                      'phone_number', 'roll_no', 'dept', 'year', 'gender'),
         }),
     )
 

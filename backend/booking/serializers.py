@@ -7,7 +7,7 @@ class StudentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Student
         fields = ['id', 'email', 'first_name', 'last_name', 'phone_number', 
-                 'year', 'roll_no', 'dept', 'gender', 'student_type', 'degree_type']
+                 'year', 'roll_no', 'dept', 'gender']
 
 
 class StopSerializer(serializers.ModelSerializer):

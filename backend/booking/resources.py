@@ -9,8 +9,7 @@ class StudentResource(resources.ModelResource):
         import_id_fields = ('email',)
         fields = (
             'id', 'email', 'first_name', 'last_name', 'phone_number', 
-            'year', 'roll_no', 'dept', 'gender', 'student_type', 
-            'degree_type', 'is_active', 'is_staff', 'is_superuser'
+            'year', 'roll_no', 'dept', 'gender', 'is_active', 'is_staff', 'is_superuser'
         )
         export_order = fields
         skip_unchanged = True

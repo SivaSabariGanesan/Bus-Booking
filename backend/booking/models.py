@@ -35,20 +35,6 @@ class Student(AbstractBaseUser):
         ('O', 'Other'),
     ]
     
-    STUDENT_TYPE_CHOICES = [
-        ('REGULAR', 'Regular'),
-        ('LATERAL', 'Lateral Entry'),
-    ]
-    
-    DEGREE_TYPE_CHOICES = [
-        ('BTECH', 'B.Tech'),
-        ('MTECH', 'M.Tech'),
-        ('MBA', 'MBA'),
-        ('BBA', 'BBA'),
-        ('BCA', 'BCA'),
-        ('MCA', 'MCA'),
-    ]
-    
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=30)
@@ -57,8 +43,6 @@ class Student(AbstractBaseUser):
     roll_no = models.CharField(max_length=20, unique=True)
     dept = models.CharField(max_length=50)
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
-    student_type = models.CharField(max_length=10, choices=STUDENT_TYPE_CHOICES)
-    degree_type = models.CharField(max_length=10, choices=DEGREE_TYPE_CHOICES)
     
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
@@ -88,7 +72,15 @@ class Student(AbstractBaseUser):
         return f"{self.first_name} {self.last_name}"
     
     def has_active_booking(self):
-        return self.booking_set.exists()
+        from django.utils import timezone
+        from datetime import datetime, time
+        now = timezone.localtime(timezone.now())
+        # Only consider bookings as active if their trip_date and departure_time are in the future
+        for booking in self.booking_set.filter(status__in=['pending', 'confirmed']):
+            trip_datetime = timezone.make_aware(datetime.combine(booking.trip_date, booking.departure_time))
+            if trip_datetime > now:
+                return True
+        return False
 
 
 class Bus(models.Model):

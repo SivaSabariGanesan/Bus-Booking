@@ -176,14 +176,26 @@ class BookingCreateView(generics.CreateAPIView):
         try:
             bus = Bus.objects.get(id=serializer.validated_data['bus_id'])
             print(f"Found bus: {bus.bus_no}")  # Debug log
+            # Always use bus.from_location and bus.to_location
+            from_location = bus.from_location
+            to_location = bus.to_location
+            # Get selected stop
+            selected_stop_id = serializer.validated_data.get('selected_stop_id')
+            selected_stop = None
+            if selected_stop_id:
+                try:
+                    selected_stop = bus.stops.get(id=selected_stop_id)
+                except Exception as e:
+                    print(f"Error finding selected stop: {e}")
             # Create booking as pending
             booking = Booking.objects.create(
                 student=request.user,
                 bus=bus,
                 trip_date=serializer.validated_data['trip_date'],
                 departure_time=serializer.validated_data['departure_time'],
-                from_location=serializer.validated_data['from_location'],
-                to_location=serializer.validated_data['to_location'],
+                from_location=from_location,
+                to_location=to_location,
+                selected_stop=selected_stop,
                 status='pending',
             )
             # Generate OTP

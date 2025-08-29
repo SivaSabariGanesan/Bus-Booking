@@ -105,16 +105,21 @@ class BookingOTPInline(admin.TabularInline):
 @admin.register(Booking)
 class BookingAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     resource_class = BookingResource
-    list_display = ('student', 'bus', 'booking_date', 'trip_date', 'departure_time', 'from_location', 'to_location', 'status', 'otp_code')
+    def selected_stop_display(self, obj):
+        if obj.selected_stop:
+            return f"{obj.selected_stop.stop_name} ({obj.selected_stop.location})"
+        return "-"
+    selected_stop_display.short_description = "Selected Stop"
+    list_display = ('student', 'bus', 'booking_date', 'trip_date', 'departure_time', 'from_location', 'to_location', 'selected_stop_display', 'status', 'otp_code')
     list_filter = ('bus__route_name', 'trip_date', 'departure_time', 'booking_date', 'status')
-    search_fields = ('student__email', 'student__first_name', 'student__last_name', 'bus__bus_no', 'from_location', 'to_location')
+    search_fields = ('student__email', 'student__first_name', 'student__last_name', 'bus__bus_no', 'from_location', 'to_location', 'selected_stop__stop_name', 'selected_stop__location')
     ordering = ('-booking_date',)
     readonly_fields = ('booking_date', 'otp_code')
     inlines = [BookingOTPInline]
     
     fieldsets = (
         ('Basic Info', {'fields': ('student', 'bus')}),
-        ('Trip Details', {'fields': ('trip_date', 'departure_time', 'from_location', 'to_location')}),
+        ('Trip Details', {'fields': ('trip_date', 'departure_time', 'from_location', 'to_location', 'selected_stop')}),
         ('System Info', {'fields': ('booking_date', 'status')}),
     )
     

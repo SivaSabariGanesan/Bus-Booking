@@ -174,6 +174,7 @@ class Booking(models.Model):
     from_location = models.CharField(max_length=100, default="")
     to_location = models.CharField(max_length=100, default="")
     is_return_trip = models.BooleanField(default=True)
+    selected_stop = models.ForeignKey('Stop', null=True, blank=True, on_delete=models.SET_NULL, related_name='bookings_selected')
     
     STATUS_CHOICES = [
         ('pending', 'Pending'),
@@ -187,7 +188,8 @@ class Booking(models.Model):
         verbose_name_plural = 'Bookings'
     
     def __str__(self):
-        return f"{self.student.full_name} - {self.bus.bus_no}"
+        stop_str = f" → {self.selected_stop.location}" if self.selected_stop else ""
+        return f"{self.student.full_name} - {self.bus.bus_no}{stop_str}"
     
     def save(self, *args, **kwargs):
         is_new = self.pk is None
@@ -197,6 +199,7 @@ class Booking(models.Model):
     
     def send_confirmation_email(self):
         subject = f'Booking Confirmation - {self.bus.route_name}'
+        stop_str = f" → {self.selected_stop.location}" if self.selected_stop else ""
         message = f"""
         Dear {self.student.full_name},
         
@@ -205,7 +208,7 @@ class Booking(models.Model):
         Booking Details:
         - Bus Number: {self.bus.bus_no}
         - Route: {self.bus.route_name}
-        - From: {self.from_location or self.bus.from_location}
+        - From: {self.from_location or self.bus.from_location}{stop_str}
         - To: {self.to_location or self.bus.to_location}
         - Departure Time: {self.bus.departure_time}
         - Trip Date: {self.trip_date.strftime('%Y-%m-%d')}

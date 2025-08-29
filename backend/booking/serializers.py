@@ -33,10 +33,10 @@ class BookingSerializer(serializers.ModelSerializer):
     student = StudentSerializer(read_only=True)
     bus = BusSerializer(read_only=True)
     status = serializers.CharField(read_only=True)
-    
+    selected_stop = StopSerializer(read_only=True)
     class Meta:
         model = Booking
-        fields = ['id', 'student', 'bus', 'booking_date', 'trip_date', 'departure_time', 'from_location', 'to_location', 'status']
+        fields = ['id', 'student', 'bus', 'booking_date', 'trip_date', 'departure_time', 'from_location', 'to_location', 'selected_stop', 'status']
 
 
 class CreateBookingSerializer(serializers.Serializer):
@@ -45,6 +45,7 @@ class CreateBookingSerializer(serializers.Serializer):
     departure_time = serializers.TimeField()
     from_location = serializers.CharField(max_length=100, allow_blank=True, default='')
     to_location = serializers.CharField(max_length=100, allow_blank=True, default='')
+    selected_stop_id = serializers.IntegerField(required=True)
     
     def validate_trip_date(self, value):
         print(f"=== VALIDATING TRIP DATE ===")

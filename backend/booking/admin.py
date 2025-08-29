@@ -290,5 +290,70 @@ admin.site.site_header = "Bus Booking System Administration"
 admin.site.site_title = "Bus Booking Admin"
 admin.site.index_title = "Welcome to Bus Booking System"
 
-# Removed custom admin site app list override to avoid incompatibilities
-_unused = None
+# Custom admin grouping for sidebar/app list while preserving functionality
+_original_get_app_list = admin.site.get_app_list
+
+def _group_booking_app_list(request):
+    """Return a custom grouped app list for the `booking` app only.
+
+    Groups:
+    - Bookings: Booking otp, Bookings
+    - Bus Details: Buses, Stops
+    - Users and groups: Students
+    Any other apps remain as-is below these groups.
+    """
+    try:
+        app_dict = admin.site._build_app_dict(request)
+    except Exception:
+        return _original_get_app_list(request)
+
+    booking_app = app_dict.get('booking')
+    if not booking_app:
+        return _original_get_app_list(request)
+
+    model_by_object_name = {m['object_name']: m for m in booking_app['models']}
+
+    def pick(object_names):
+        items = []
+        for name in object_names:
+            model_info = model_by_object_name.get(name)
+            if model_info:
+                items.append(model_info)
+        return items
+
+    grouped = [
+        {
+            'name': 'Bookings',
+            'app_label': 'bookings',
+            'app_url': '',
+            'has_module_perms': True,
+            'models': pick(['BookingOTP', 'Booking']),
+        },
+        {
+            'name': 'Bus Details',
+            'app_label': 'bus_details',
+            'app_url': '',
+            'has_module_perms': True,
+            'models': pick(['Bus', 'Stop']),
+        },
+        {
+            'name': 'Users and groups',
+            'app_label': 'users_and_groups',
+            'app_url': '',
+            'has_module_perms': True,
+            'models': pick(['Student']),
+        },
+    ]
+
+    others = [app for app in _original_get_app_list(request) if app.get('app_label') != 'booking']
+    return grouped + others
+
+
+def custom_get_app_list(request):
+    try:
+        return _group_booking_app_list(request)
+    except Exception:
+        return _original_get_app_list(request)
+
+
+admin.site.get_app_list = custom_get_app_list

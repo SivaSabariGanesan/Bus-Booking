@@ -218,8 +218,8 @@ class BookingOTPAdmin(ImportExportModelAdmin, admin.ModelAdmin):
 class BusAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     resource_class = BusResource
     form = BusAdminForm
-    list_display = ('bus_no', 'route_name', 'from_location', 'to_location', 'departure_date', 'departure_time', 'capacity', 'available_seats', 'is_full')
-    list_filter = (DepartureDateFilter, 'route_name', 'from_location', 'to_location')
+    list_display = ('bus_no', 'route_name', 'from_location', 'to_location', 'departure_date', 'departure_time', 'capacity', 'available_seats', 'is_full', 'is_booking_open')
+    list_filter = (DepartureDateFilter, 'route_name', 'from_location', 'to_location', 'is_booking_open')
     search_fields = ('bus_no', 'route_name', 'from_location', 'to_location')
     ordering = ('bus_no',)
     actions = ['set_today_departure', 'set_tomorrow_departure', 'set_next_week_departure']
@@ -235,6 +235,9 @@ class BusAdmin(ImportExportModelAdmin, admin.ModelAdmin):
         }),
         ('Capacity', {
             'fields': ('capacity',)
+        }),
+        ('Booking Controls', {
+            'fields': ('is_booking_open',)
         }),
     )
     

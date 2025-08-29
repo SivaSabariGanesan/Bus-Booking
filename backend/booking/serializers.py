@@ -26,7 +26,7 @@ class BusSerializer(serializers.ModelSerializer):
         model = Bus
         fields = ['id', 'bus_no', 'route_name', 'from_location', 'to_location', 
                  'route_display', 'departure_date', 'departure_time', 
-                 'capacity', 'available_seats', 'is_full', 'stops']
+                 'capacity', 'available_seats', 'is_full', 'stops', 'is_booking_open']
 
 
 class BookingSerializer(serializers.ModelSerializer):

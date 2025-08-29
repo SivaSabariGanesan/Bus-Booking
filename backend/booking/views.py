@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from django.contrib.auth import login, logout
-from .models import Student, Bus, Booking, BookingOTP
+from .models import Student, Bus, Booking, BookingOTP, SiteConfiguration
 from .serializers import (
     StudentSerializer, BusSerializer, BookingSerializer, 
     CreateBookingSerializer, LoginSerializer
@@ -113,6 +113,16 @@ class BookingCreateView(generics.CreateAPIView):
     
     def create(self, request, *args, **kwargs):
         print(f"=== BOOKING CREATE VIEW ===")
+        # Check if booking is open
+        try:
+            config = SiteConfiguration.get_solo()
+            if not config.booking_open:
+                return Response({
+                    'success': False,
+                    'errors': {'non_field_errors': ['Booking is currently closed. Please try again later.']}
+                }, status=status.HTTP_403_FORBIDDEN)
+        except Exception:
+            pass
         print(f"Request method: {request.method}")
         print(f"Request user: {request.user.email}")
         print(f"Request data: {request.data}")
@@ -134,6 +144,12 @@ class BookingCreateView(generics.CreateAPIView):
         print(f"Validated data: {serializer.validated_data}")
         try:
             bus = Bus.objects.get(id=serializer.validated_data['bus_id'])
+            # Enforce per-bus booking open/close
+            if not getattr(bus, 'is_booking_open', True):
+                return Response({
+                    'success': False,
+                    'errors': {'non_field_errors': ['Booking for this bus is currently closed.']}
+                }, status=status.HTTP_403_FORBIDDEN)
             print(f"Found bus: {bus.bus_no}")  # Debug log
             # Always use bus.from_location and bus.to_location
             from_location = bus.from_location

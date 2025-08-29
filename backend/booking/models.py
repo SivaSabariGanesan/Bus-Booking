@@ -91,6 +91,7 @@ class Bus(models.Model):
     departure_date = models.DateField(default=timezone.now, help_text="Date when this bus is available for departure")
     departure_time = models.TimeField()
     capacity = models.PositiveIntegerField()
+    is_booking_open = models.BooleanField(default=True, help_text="If disabled, this bus cannot be booked")
     
     class Meta:
         verbose_name = 'Bus'
@@ -295,6 +296,7 @@ class BookingOTP(models.Model):
 
 class SiteConfiguration(models.Model):
     allowed_years = models.JSONField(default=list, help_text="List of allowed student years for login, e.g. ['2', '3', '4']")
+    booking_open = models.BooleanField(default=True, help_text="If disabled, students cannot create new bookings")
 
     class Meta:
         verbose_name = 'Site Configuration'

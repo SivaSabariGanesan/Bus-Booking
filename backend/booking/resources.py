@@ -40,7 +40,7 @@ class BusResource(resources.ModelResource):
         import_id_fields = ('bus_no',)
         fields = (
             'id', 'bus_no', 'route_name', 'from_location', 'to_location',
-            'departure_date', 'departure_time', 'capacity'
+            'departure_date', 'departure_time', 'capacity', 'is_booking_open'
         )
         export_order = fields
         skip_unchanged = True

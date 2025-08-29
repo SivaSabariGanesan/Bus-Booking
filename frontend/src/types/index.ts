@@ -8,8 +8,6 @@ export interface User {
   roll_no: string;
   dept: string;
   gender: string;
-  student_type: string;
-  degree_type: string;
 }
 
 export interface Stop {
@@ -35,6 +33,7 @@ export interface Bus {
   available_seats: number;
   is_full: boolean;
   stops: Stop[];
+  is_booking_open: boolean;
 }
 
 export interface Booking {

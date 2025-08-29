@@ -70,6 +70,9 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activ
         <CardTitle className="flex items-center gap-2 text-lg">
           <Bus className="h-4 w-4" />
           {bus.route_name}
+          {!bus.is_booking_open && (
+            <Badge variant="secondary" className="ml-2">Closed</Badge>
+          )}
         </CardTitle>
       </CardHeader>
 
@@ -105,11 +108,11 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activ
         {!showStopSelection ? (
           <Button 
             onClick={handleBookClick} 
-            disabled={loading || bus.is_full || isBooked} 
+            disabled={loading || bus.is_full || isBooked || !bus.is_booking_open} 
             className="w-full" 
             size="sm"
           >
-            {loading ? "Booking..." : isBooked ? "Booked" : bus.is_full ? "Full" : "Book Now"}
+            {loading ? "Booking..." : isBooked ? "Booked" : bus.is_full ? "Full" : (!bus.is_booking_open ? "Closed" : "Book Now")}
           </Button>
         ) : (
           <div className="space-y-3">

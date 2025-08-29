@@ -11,15 +11,14 @@ import type { Bus as BusType, Stop } from "../types"
 
 interface BusCardProps {
   bus: BusType
-  onBook: (pickupStopId: number, dropoffStopId: number) => void
+  onBook: (pickupStopId: number) => void
   loading: boolean
   isBooked: boolean
   activeFilter?: "from_rec" | "to_rec"
 }
 
 const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activeFilter }) => {
-  const [selectedPickupStopId, setSelectedPickupStopId] = useState<number | null>(null)
-  const [selectedDropoffStopId, setSelectedDropoffStopId] = useState<number | null>(null)
+  const [selectedStopId, setSelectedStopId] = useState<number | null>(null)
   const [showStopSelection, setShowStopSelection] = useState(false)
   
 
@@ -31,54 +30,29 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activ
     setShowStopSelection(true)
     
     if (bus.stops && bus.stops.length > 0) {
-      // If filter is active, automatically select REC stops
-      if (activeFilter === "from_rec") {
-        const recPickupStop = bus.stops.find(stop => 
-          stop.is_pickup && stop.location.toLowerCase().includes("rec")
-        )
-        console.log("REC pickup stop found:", recPickupStop)
-        if (recPickupStop) {
-          // Automatically select REC as pickup
-          setSelectedPickupStopId(recPickupStop.id)
-        }
-      } else if (activeFilter === "to_rec") {
-        const recDropoffStop = bus.stops.find(stop => 
-          stop.is_dropoff && stop.location.toLowerCase().includes("rec")
-        )
-        console.log("REC dropoff stop found:", recDropoffStop)
-        if (recDropoffStop) {
-          // Automatically select REC as drop-off
-          setSelectedDropoffStopId(recDropoffStop.id)
-        }
-      }
+      console.log("Available stops:", bus.stops.map(s => ({
+        id: s.id,
+        name: s.display_name,
+        location: s.location,
+        is_pickup: s.is_pickup,
+        is_dropoff: s.is_dropoff
+      })))
+      
+             // No auto-selection - user will manually select all stops
+       console.log("ℹ️ No auto-selection - user will manually select pickup and dropoff stops")
     }
   }
 
-  const handlePickupStopSelect = (stopId: string) => {
-    console.log("Pickup stop selected:", stopId)
-    setSelectedPickupStopId(parseInt(stopId))
-  }
-
-  const handleDropoffStopSelect = (stopId: string) => {
-    console.log("Dropoff stop selected:", stopId)
-    setSelectedDropoffStopId(parseInt(stopId))
-  }
-
-  const handleConfirmBooking = () => {
-    // For from_rec: pickup is automatically selected, need dropoff
-    // For to_rec: dropoff is automatically selected, need pickup
-    // For all: need both pickup and dropoff
-    const canConfirm = 
-      (activeFilter === "from_rec" && selectedPickupStopId && selectedDropoffStopId) ||
-      (activeFilter === "to_rec" && selectedPickupStopId && selectedDropoffStopId) ||
-      (!activeFilter && selectedPickupStopId && selectedDropoffStopId)
-    
-    if (canConfirm) {
-      onBook(selectedPickupStopId, selectedDropoffStopId)
-      setShowStopSelection(false)
-      setSelectedPickupStopId(null)
-      setSelectedDropoffStopId(null)
-    }
+  const handleStopSelect = (stopId: string) => {
+    const stopIdNum = parseInt(stopId)
+    const selectedStop = bus.stops?.find(s => s.id === stopIdNum)
+    console.log("Stop selected:", {
+      stopId,
+      stopIdNum,
+      stopName: selectedStop?.display_name,
+      stopLocation: selectedStop?.location
+    })
+    setSelectedStopId(stopIdNum)
   }
 
   const activeStops = bus.stops?.filter(stop => stop.is_active) || []
@@ -98,16 +72,33 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activ
       </CardHeader>
 
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <MapPin className="h-3 w-3" />
-            <span className="truncate">{bus.from_location}</span>
-            <span>→</span>
-            <span className="truncate">{bus.to_location}</span>
-          </div>
-          
-          
-        </div>
+                 <div className="space-y-2">
+           <div className="flex items-center gap-2 text-sm text-muted-foreground">
+             <MapPin className="h-3 w-3" />
+             <span className="truncate">{bus.from_location}</span>
+             <span>→</span>
+             <span className="truncate">{bus.to_location}</span>
+           </div>
+           
+                       {/* Show route with selected stops when available */}
+            {showStopSelection && (selectedStopId) && (
+              <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+                <span className="font-medium">Bus Route:</span>{" "}
+                <span className="font-medium">{bus.from_location} → {bus.to_location}</span>
+                <br />
+                <span className="font-medium">Your Journey:</span>{" "}
+                {selectedStopId ? (
+                  <>
+                    <span className="font-medium">{bus.stops?.find(s => s.id === selectedStopId)?.location || "Selected Stop"}</span>
+                    <span> → </span>
+                    <span className="font-medium">{bus.to_location}</span>
+                  </>
+                ) : (
+                  "Select your main stop for your journey"
+                )}
+              </div>
+            )}
+         </div>
 
         {!showStopSelection ? (
           <Button 
@@ -120,111 +111,84 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activ
           </Button>
         ) : (
           <div className="space-y-3">
-            <div className="text-sm font-medium text-gray-700">
-              {activeFilter === "from_rec" 
-                ? "REC is automatically selected as your pickup point. Choose your drop-off location:"
-                : activeFilter === "to_rec"
-                ? "REC is automatically selected as your drop-off point. Choose your pickup location:"
-                : "Select your pickup and drop-off stops:"
-              }
-            </div>
-            
-                         {/* Pickup Point - Show for "to_rec" filter (user selects pickup, REC is dropoff) */}
-             {(activeFilter === "to_rec" || !activeFilter) && (
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-600">
-                  Pickup Point: ({pickupStops.length} options)
-                </label>
-                <Select onValueChange={handlePickupStopSelect} value={selectedPickupStopId?.toString() || ""}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose pickup stop" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {pickupStops.length > 0 ? (
-                      pickupStops.map((stop) => (
-                        <SelectItem key={stop.id} value={stop.id.toString()}>
-                          {stop.display_name}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="" disabled>
-                        No pickup stops available
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-                         {/* Drop-off Point - Show for "from_rec" filter (user selects dropoff, REC is pickup) */}
-             {(activeFilter === "from_rec" || !activeFilter) && (
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-600">
-                  Drop-off Point: ({dropoffStops.length} options)
-                </label>
-                <Select onValueChange={handleDropoffStopSelect} value={selectedDropoffStopId?.toString() || ""}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose drop-off stop" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dropoffStops.length > 0 ? (
-                      dropoffStops.map((stop) => (
-                        <SelectItem key={stop.id} value={stop.id.toString()}>
-                          {stop.display_name}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <SelectItem value="" disabled>
-                        No drop-off stops available
-                      </SelectItem>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Show automatically selected stops */}
-            {activeFilter === "from_rec" && selectedPickupStopId && (
-              <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded border border-green-200">
-                ✅ Pickup Point: {bus.stops?.find(s => s.id === selectedPickupStopId)?.display_name || "REC"}
-              </div>
-            )}
-            
-            {activeFilter === "to_rec" && selectedDropoffStopId && (
-              <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded border border-green-200">
-                ✅ Drop-off Point: {bus.stops?.find(s => s.id === selectedDropoffStopId)?.display_name || "REC"}
-              </div>
-            )}
-            
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowStopSelection(false)
-                  setSelectedPickupStopId(null)
-                  setSelectedDropoffStopId(null)
-                }}
-                className="flex-1"
-                size="sm"
-              >
-                Cancel
-              </Button>
-                             <Button
-                 onClick={handleConfirmBooking}
-                                   disabled={
-                    (activeFilter === "from_rec" && !selectedDropoffStopId) ||
-                    (activeFilter === "to_rec" && !selectedPickupStopId) ||
-                    (!activeFilter && (!selectedPickupStopId || !selectedDropoffStopId)) ||
-                    loading
-                  }
-                 className="flex-1"
-                 size="sm"
-               >
-                {loading ? "Booking..." : "Confirm Booking"}
-              </Button>
-            </div>
-          </div>
-        )}
+    <div className="text-sm font-medium text-gray-700">
+      Pickup: {bus.from_location} | Dropoff: {bus.to_location}
+      <br />
+      <span className="text-xs text-gray-600">Select your main stop for your journey:</span>
+    </div>
+    {/* Single Stop Selection Dropdown */}
+    <div className="space-y-2">
+      <label className="text-xs font-medium text-gray-600">
+        Your Stop: ({activeStops.length} options)
+      </label>
+      <Select onValueChange={handleStopSelect} value={selectedStopId?.toString() || ""}>
+        <SelectTrigger>
+          <SelectValue placeholder="Choose your stop" />
+        </SelectTrigger>
+        <SelectContent>
+          {activeStops.length > 0 ? (
+            activeStops.map((stop) => (
+              <SelectItem key={stop.id} value={stop.id.toString()}>
+                {stop.location}
+              </SelectItem>
+            ))
+          ) : (
+            <SelectItem value="no-stops" disabled>
+              No stops available
+            </SelectItem>
+          )}
+        </SelectContent>
+      </Select>
+    </div>
+    {/* Show selected stop summary */}
+    {selectedStopId && (
+      <div className="text-sm text-green-600 bg-green-50 px-3 py-2 rounded border border-green-200">
+        <div className="text-xs text-green-700">
+          <span className="font-medium">Bus Route:</span> {bus.from_location} → {bus.to_location}
+        </div>
+        <div className="text-xs text-green-700 mt-1">
+          <span className="font-medium">Your Journey:</span> {bus.from_location} → {bus.stops?.find(s => s.id === selectedStopId)?.location} → {bus.to_location}
+        </div>
+      </div>
+    )}
+    {/* Journey Preview */}
+    {selectedStopId && (
+      <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded border border-blue-200">
+        🚌 Journey Preview:
+        <div className="text-xs text-blue-700 mt-1">
+          {bus.from_location} → {bus.stops?.find(s => s.id === selectedStopId)?.location} → {bus.to_location}
+        </div>
+      </div>
+    )}
+    <div className="flex gap-2">
+      <Button
+        variant="outline"
+        onClick={() => {
+          setShowStopSelection(false)
+          setSelectedStopId(null)
+        }}
+        className="flex-1"
+        size="sm"
+      >
+        Cancel
+      </Button>
+      <Button
+        onClick={() => {
+          if (selectedStopId) {
+            onBook(selectedStopId)
+            setShowStopSelection(false)
+            setSelectedStopId(null)
+          }
+        }}
+        disabled={!selectedStopId || loading}
+        className="flex-1"
+        size="sm"
+      >
+        {loading ? "Booking..." : "Confirm Booking"}
+      </Button>
+    </div>
+  </div>
+)}
       </CardContent>
     </Card>
   )

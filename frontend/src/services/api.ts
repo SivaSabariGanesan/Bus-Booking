@@ -151,7 +151,14 @@ export const testBookingData = async (busId: number, tripDate: string, departure
   }
 };
 
-export const createBooking = async (busId: number, tripDate: string, departureTime: string, fromLocation: string, toLocation: string) => {
+export const createBooking = async (
+  busId: number,
+  tripDate: string,
+  departureTime: string,
+  fromLocation: string,
+  toLocation: string,
+  selectedStopId: number
+) => {
   try {
     const response = await apiCall('/bookings/', {
       method: 'POST',
@@ -160,10 +167,10 @@ export const createBooking = async (busId: number, tripDate: string, departureTi
         trip_date: tripDate, 
         departure_time: departureTime, 
         from_location: fromLocation, 
-        to_location: toLocation 
+        to_location: toLocation,
+        selected_stop_id: selectedStopId
       }),
     });
-    
     if (response.success) {
       return response;
     } else {
@@ -201,6 +208,14 @@ export const verifyBookingOtp = async (pendingBookingId: number, otp: string) =>
   const response = await apiCall('/bookings/verify-otp/', {
     method: 'POST',
     body: JSON.stringify({ pending_booking_id: pendingBookingId, otp }),
+  });
+  return response;
+};
+
+export const resendOtp = async (bookingId: number) => {
+  const response = await apiCall('/bookings/resend-otp/', {
+    method: 'POST',
+    body: JSON.stringify({ booking_id: bookingId }),
   });
   return response;
 };

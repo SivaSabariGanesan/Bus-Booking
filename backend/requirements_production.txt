@@ -16,26 +16,14 @@ django-unfold==0.18.0
 # Import/Export functionality
 django-import-export==3.3.4
 
-# Email and SMTP
-# (built into Django)
-
 # Production server
 gunicorn==21.2.0
 
 # Environment variables
 python-decouple==3.8
 
-# Logging and monitoring
-# sentry-sdk==1.38.0
-
 # Static files
 whitenoise==6.6.0
 
-# Security
-django-secure==1.0.2
-
-# Performance
-django-cacheops==8.0.0
-
 # Health checks
-django-health-check==3.17.0
+# django-health-check==3.17.0

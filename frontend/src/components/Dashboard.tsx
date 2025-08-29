@@ -63,7 +63,7 @@ const Dashboard: React.FC = () => {
     }
   }
 
-  const handleBookBus = async (busId: number, pickupStopId: number = 0, dropoffStopId: number = 0) => {
+  const handleBookBus = async (busId: number, selectedStopId: number = 0) => {
     if (!user) return
     
     // Check if user already has a confirmed booking
@@ -82,18 +82,9 @@ const Dashboard: React.FC = () => {
     if (!bus || bus.is_full) return
 
     // Get stop information
-    let fromLocation = bus.from_location || ""
-    let toLocation = bus.to_location || ""
+    const fromLocation = bus.from_location || ""
+    const toLocation = bus.to_location || ""
     
-    if (pickupStopId > 0 && dropoffStopId > 0) {
-      const pickupStop = bus.stops?.find(s => s.id === pickupStopId)
-      const dropoffStop = bus.stops?.find(s => s.id === dropoffStopId)
-      if (pickupStop && dropoffStop) {
-        fromLocation = pickupStop.location
-        toLocation = dropoffStop.location
-      }
-    }
-
     setBookingLoading(busId)
     try {
       const response = await createBooking(
@@ -102,6 +93,7 @@ const Dashboard: React.FC = () => {
         selectedDepartureTime,
         fromLocation,
         toLocation,
+        selectedStopId
       )
 
       if (response && response.otp_sent && response.pending_booking_id) {
@@ -253,7 +245,7 @@ const Dashboard: React.FC = () => {
                                                           <BusCard
                        key={bus.id}
                        bus={bus}
-                       onBook={(pickupStopId, dropoffStopId) => handleBookBus(bus.id, pickupStopId, dropoffStopId)}
+                       onBook={(selectedStopId) => handleBookBus(bus.id, selectedStopId)}
                        loading={bookingLoading === bus.id}
                        isBooked={!!(currentBooking && currentBooking.status === 'confirmed')}
                        activeFilter={activeFilter}

@@ -6,9 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Button } from "../components/ui/button"
 import { Badge } from "../components/ui/badge"
 import { Input } from "../components/ui/input"
-import { Calendar, Clock, MapPin, Bus, AlertCircle } from "lucide-react"
+import { Calendar, Clock, MapPin, Bus, AlertCircle, RefreshCw } from "lucide-react"
 import type { Booking } from "../types"
-import { verifyBookingOtp } from "../services/api"
+import { verifyBookingOtp, resendOtp } from "../services/api"
 import { toast } from "sonner"
 
 interface BookingCardProps {
@@ -21,6 +21,7 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onBookingConfirmed }
   const [otpInput, setOtpInput] = useState("")
   const [otpLoading, setOtpLoading] = useState(false)
   const [otpError, setOtpError] = useState("")
+  const [resendLoading, setResendLoading] = useState(false)
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -37,6 +38,20 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onBookingConfirmed }
       minute: "2-digit",
       hour12: true,
     })
+  }
+
+  // Add this helper to get the selected stop for the booking
+  const getSelectedStop = () => {
+    // If booking has a stop_id or stop_name, use that (add logic if your backend provides it)
+    // Otherwise, try to find a stop in the bus stops that is not from_location or to_location
+    if (booking.bus.stops && booking.bus.stops.length > 0) {
+      // Try to find a stop that is not from_location or to_location
+      const intermediate = booking.bus.stops.find(
+        s => s.location !== booking.from_location && s.location !== booking.to_location
+      )
+      return intermediate ? intermediate.location : booking.bus.stops[0].location
+    }
+    return "-"
   }
 
   const handleOtpVerification = async () => {
@@ -62,6 +77,26 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onBookingConfirmed }
     }
   }
 
+  const handleResendOtp = async () => {
+    setResendLoading(true)
+    setOtpError("")
+    
+    try {
+      const result = await resendOtp(booking.id)
+      if (result.success) {
+        toast.success("New OTP sent to your email!")
+        setShowOtpInput(true)
+        setOtpInput("")
+      } else {
+        setOtpError(result.error || "Failed to resend OTP")
+      }
+    } catch (err: any) {
+      setOtpError(err.message || "Failed to resend OTP")
+    } finally {
+      setResendLoading(false)
+    }
+  }
+
   return (
     <Card className="border-green-200 bg-green-50/50">
       <CardHeader className="pb-3">
@@ -81,6 +116,8 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onBookingConfirmed }
           <div className="flex items-center gap-2 text-sm">
             <MapPin className="h-3 w-3 text-muted-foreground" />
             <span className="font-medium">{booking.from_location}</span>
+            <span className="text-muted-foreground">→</span>
+            <span className="font-medium">{getSelectedStop()}</span>
             <span className="text-muted-foreground">→</span>
             <span className="font-medium">{booking.to_location}</span>
           </div>
@@ -110,12 +147,32 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onBookingConfirmed }
             </div>
             
             {!showOtpInput ? (
-              <Button 
-                onClick={() => setShowOtpInput(true)}
-                className="w-full bg-amber-600 hover:bg-amber-700"
-              >
-                Verify OTP
-              </Button>
+              <div className="space-y-3">
+                <Button 
+                  onClick={() => setShowOtpInput(true)}
+                  className="w-full bg-amber-600 hover:bg-amber-700"
+                >
+                  Verify OTP
+                </Button>
+                <Button 
+                  onClick={handleResendOtp}
+                  disabled={resendLoading}
+                  variant="outline"
+                  className="w-full border-amber-600 text-amber-700 hover:bg-amber-50"
+                >
+                  {resendLoading ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Resend OTP
+                    </>
+                  )}
+                </Button>
+              </div>
             ) : (
               <div className="space-y-3">
                 <div className="text-sm text-amber-800">
@@ -153,6 +210,25 @@ const BookingCard: React.FC<BookingCardProps> = ({ booking, onBookingConfirmed }
                     {otpLoading ? "Verifying..." : "Verify OTP"}
                   </Button>
                 </div>
+                <Button 
+                  onClick={handleResendOtp}
+                  disabled={resendLoading}
+                  variant="outline"
+                  size="sm"
+                  className="w-full border-amber-600 text-amber-700 hover:bg-amber-50"
+                >
+                  {resendLoading ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Sending New OTP...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Resend OTP
+                    </>
+                  )}
+                </Button>
               </div>
             )}
           </div>

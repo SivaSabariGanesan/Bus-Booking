@@ -102,7 +102,7 @@ class Bus(models.Model):
     
     @property
     def available_seats(self):
-        return self.capacity - self.booking_set.filter(status='confirmed').count()
+        return self.capacity - self.booking_set.filter(status='confirmed', trip_date=self.departure_date).count()
     
     @property
     def route_display(self):
@@ -111,7 +111,7 @@ class Bus(models.Model):
     
     @property
     def is_full(self):
-        return self.booking_set.filter(status='confirmed').count() >= self.capacity
+        return self.booking_set.filter(status='confirmed', trip_date=self.departure_date).count() >= self.capacity
     
     def is_available_for_date(self, target_date):
         """Check if bus is available for departure on a specific date"""
@@ -125,6 +125,37 @@ class Bus(models.Model):
             'formatted_date': self.departure_date.strftime('%A, %B %d, %Y'),
             'formatted_time': self.departure_time.strftime('%I:%M %p')
         }
+    
+    # Demand analytics
+    def _target_trip_date_for_route(self):
+        """Return the next upcoming trip date (>= today) that has bookings for this route.
+        If none upcoming, fall back to the most recent trip date that has bookings.
+        """
+        from django.db.models import Min, Max
+        today = timezone.now().date()
+        upcoming = Booking.objects.filter(bus__route_name=self.route_name, trip_date__gte=today).aggregate(next_date=Min('trip_date'))['next_date']
+        if upcoming:
+            return upcoming
+        last = Booking.objects.filter(bus__route_name=self.route_name).aggregate(last_date=Max('trip_date'))['last_date']
+        return last
+
+    def confirmed_bookings_for_route_on_date(self):
+        """Count confirmed bookings for this route on the target trip date (auto-selected)."""
+        target_date = self._target_trip_date_for_route()
+        if not target_date:
+            return 0
+        return Booking.objects.filter(
+            bus__route_name=self.route_name,
+            trip_date=target_date,
+            status='confirmed'
+        ).count()
+    
+    def required_buses_for_route_on_date(self):
+        import math
+        total = self.confirmed_bookings_for_route_on_date()
+        if self.capacity <= 0:
+            return 0
+        return max(1, math.ceil(total / self.capacity))
 
 
 class Stop(models.Model):

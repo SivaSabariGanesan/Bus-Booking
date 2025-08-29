@@ -42,6 +42,33 @@ class DepartureDateFilter(admin.SimpleListFilter):
         return queryset
 
 
+class StopNameFilter(admin.SimpleListFilter):
+    title = 'Stop Name'
+    parameter_name = 'stop_name_filter'
+
+    def lookups(self, request, model_admin):
+        # Get unique stop names with their types and locations from the Stop model
+        stops = Stop.objects.filter(is_active=True).values('stop_name', 'location', 'is_pickup', 'is_dropoff').distinct().order_by('stop_name', 'location')
+        lookups = []
+        for stop in stops:
+            stop_types = []
+            if stop['is_pickup']:
+                stop_types.append('Pickup')
+            if stop['is_dropoff']:
+                stop_types.append('Drop-off')
+            type_str = f" ({', '.join(stop_types)})" if stop_types else ""
+            # Format: "stop_name - location (Pickup/Drop-off)"
+            display_name = f"{stop['stop_name']} - {stop['location']}{type_str}"
+            # Use stop_name as the value for filtering
+            lookups.append((stop['stop_name'], display_name))
+        return lookups
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(selected_stop__stop_name=self.value())
+        return queryset
+
+
 class BusAdminForm(forms.ModelForm):
     class Meta:
         model = Bus
@@ -108,7 +135,7 @@ class BookingAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     # Django admin list_filter does not support traversing to a specific field on a related
     # model using double-underscore syntax. Using 'bus__route_name' raises a FieldError in
     # production (500 on the changelist). Filter by the related object instead.
-    list_filter = ('bus', 'trip_date', 'departure_time', 'booking_date', 'status')
+    list_filter = (StopNameFilter, 'bus', 'trip_date', 'departure_time', 'booking_date', 'status', 'selected_stop', 'selected_stop__is_pickup', 'selected_stop__is_dropoff')
     search_fields = ('student__email', 'student__first_name', 'student__last_name', 'bus__bus_no', 'from_location', 'to_location', 'selected_stop__stop_name', 'selected_stop__location')
     ordering = ('-booking_date',)
     readonly_fields = ('booking_date', 'otp_code')
@@ -218,7 +245,7 @@ class BookingOTPAdmin(ImportExportModelAdmin, admin.ModelAdmin):
 class BusAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     resource_class = BusResource
     form = BusAdminForm
-    list_display = ('bus_no', 'route_name', 'from_location', 'to_location', 'departure_date', 'departure_time', 'capacity', 'available_seats', 'is_full', 'is_booking_open')
+    list_display = ('bus_no', 'route_name', 'from_location', 'to_location', 'departure_date', 'departure_time', 'capacity', 'available_seats', 'is_full', 'is_booking_open', 'route_confirmed_today', 'required_buses_today')
     list_filter = (DepartureDateFilter, 'route_name', 'from_location', 'to_location', 'is_booking_open')
     search_fields = ('bus_no', 'route_name', 'from_location', 'to_location')
     ordering = ('bus_no',)
@@ -240,6 +267,20 @@ class BusAdmin(ImportExportModelAdmin, admin.ModelAdmin):
             'fields': ('is_booking_open',)
         }),
     )
+    
+    def route_confirmed_today(self, obj):
+        try:
+            return obj.confirmed_bookings_for_route_on_date()
+        except Exception:
+            return '-'
+    route_confirmed_today.short_description = 'Route confirmed (today)'
+
+    def required_buses_today(self, obj):
+        try:
+            return obj.required_buses_for_route_on_date()
+        except Exception:
+            return '-'
+    required_buses_today.short_description = 'Required buses (today)'
     
     def set_today_departure(self, request, queryset):
         """Set selected buses to depart today"""

@@ -146,10 +146,21 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "http://localhost:5174",
-    "http://127.0.0.1:5174"
+    "http://127.0.0.1:5174",
+    # Netlify production site
+    "https://recbusbooking25.netlify.app",
 ]
 
+# Allow all Netlify subdomains (optional)
+CORS_ALLOWED_ORIGIN_REGEXES = [r"^https://.*\.netlify\.app$"]
+
 CORS_ALLOW_CREDENTIALS = True
+
+# CSRF trusted origins (for secure POST from frontend if needed)
+CSRF_TRUSTED_ORIGINS = [
+    "https://recbusbooking25.netlify.app",
+    "https://*.netlify.app",
+]
 
 # Email settings (for development, using console backend)
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'

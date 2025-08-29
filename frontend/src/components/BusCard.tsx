@@ -29,8 +29,9 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activ
     // Always show stop selection first, regardless of filter or stops configuration
     setShowStopSelection(true)
     
-    if (bus.stops && bus.stops.length > 0) {
-      console.log("Available stops:", bus.stops.map(s => ({
+    const stops: Stop[] = Array.isArray(bus.stops) ? bus.stops : []
+    if (stops.length > 0) {
+      console.log("Available stops:", stops.map(s => ({
         id: s.id,
         name: s.display_name,
         location: s.location,
@@ -38,14 +39,15 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activ
         is_dropoff: s.is_dropoff
       })))
       
-             // No auto-selection - user will manually select all stops
-       console.log("ℹ️ No auto-selection - user will manually select pickup and dropoff stops")
+      // No auto-selection - user will manually select all stops
+      console.log("ℹ️ No auto-selection - user will manually select pickup and dropoff stops")
     }
   }
 
   const handleStopSelect = (stopId: string) => {
     const stopIdNum = parseInt(stopId)
-    const selectedStop = bus.stops?.find(s => s.id === stopIdNum)
+    const stops: Stop[] = Array.isArray(bus.stops) ? bus.stops : []
+    const selectedStop = stops.find(s => s.id === stopIdNum)
     console.log("Stop selected:", {
       stopId,
       stopIdNum,
@@ -55,10 +57,10 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activ
     setSelectedStopId(stopIdNum)
   }
 
-  const activeStops = bus.stops?.filter(stop => stop.is_active) || []
+  const stopsArr: Stop[] = Array.isArray(bus.stops) ? bus.stops : []
+  const activeStops = stopsArr.filter(stop => stop.is_active)
   
   // Always show all available stops in dropdowns, regardless of filter
-  // The filter only affects what gets automatically selected, not what's shown
   const pickupStops = activeStops.filter(stop => stop.is_pickup)
   const dropoffStops = activeStops.filter(stop => stop.is_dropoff)
 
@@ -72,33 +74,33 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activ
       </CardHeader>
 
       <CardContent className="space-y-4">
-                 <div className="space-y-2">
-           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-             <MapPin className="h-3 w-3" />
-             <span className="truncate">{bus.from_location}</span>
-             <span>→</span>
-             <span className="truncate">{bus.to_location}</span>
-           </div>
-           
-                       {/* Show route with selected stops when available */}
-            {showStopSelection && (selectedStopId) && (
-              <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
-                <span className="font-medium">Bus Route:</span>{" "}
-                <span className="font-medium">{bus.from_location} → {bus.to_location}</span>
-                <br />
-                <span className="font-medium">Your Journey:</span>{" "}
-                {selectedStopId ? (
-                  <>
-                    <span className="font-medium">{bus.stops?.find(s => s.id === selectedStopId)?.location || "Selected Stop"}</span>
-                    <span> → </span>
-                    <span className="font-medium">{bus.to_location}</span>
-                  </>
-                ) : (
-                  "Select your main stop for your journey"
-                )}
-              </div>
-            )}
-         </div>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <MapPin className="h-3 w-3" />
+            <span className="truncate">{bus.from_location}</span>
+            <span>→</span>
+            <span className="truncate">{bus.to_location}</span>
+          </div>
+          
+          {/* Show route with selected stops when available */}
+          {showStopSelection && (selectedStopId) && (
+            <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-200">
+              <span className="font-medium">Bus Route:</span>{" "}
+              <span className="font-medium">{bus.from_location} → {bus.to_location}</span>
+              <br />
+              <span className="font-medium">Your Journey:</span>{" "}
+              {selectedStopId ? (
+                <>
+                  <span className="font-medium">{stopsArr.find(s => s.id === selectedStopId)?.location || "Selected Stop"}</span>
+                  <span> → </span>
+                  <span className="font-medium">{bus.to_location}</span>
+                </>
+              ) : (
+                "Select your main stop for your journey"
+              )}
+            </div>
+          )}
+        </div>
 
         {!showStopSelection ? (
           <Button 
@@ -147,7 +149,7 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activ
           <span className="font-medium">Bus Route:</span> {bus.from_location} → {bus.to_location}
         </div>
         <div className="text-xs text-green-700 mt-1">
-          <span className="font-medium">Your Journey:</span> {bus.from_location} → {bus.stops?.find(s => s.id === selectedStopId)?.location} → {bus.to_location}
+          <span className="font-medium">Your Journey:</span> {bus.from_location} → {stopsArr.find(s => s.id === selectedStopId)?.location} → {bus.to_location}
         </div>
       </div>
     )}
@@ -156,7 +158,7 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activ
       <div className="text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded border border-blue-200">
         🚌 Journey Preview:
         <div className="text-xs text-blue-700 mt-1">
-          {bus.from_location} → {bus.stops?.find(s => s.id === selectedStopId)?.location} → {bus.to_location}
+          {bus.from_location} → {stopsArr.find(s => s.id === selectedStopId)?.location} → {bus.to_location}
         </div>
       </div>
     )}
@@ -188,7 +190,7 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activ
       </Button>
     </div>
   </div>
-)}
+        )}
       </CardContent>
     </Card>
   )

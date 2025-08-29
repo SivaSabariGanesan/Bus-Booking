@@ -127,12 +127,14 @@ const Dashboard: React.FC = () => {
       (bus.from_location || "").toLowerCase().includes(query) ||
       (bus.to_location || "").toLowerCase().includes(query)
 
+    const stopsArr = Array.isArray(bus.stops) ? bus.stops : []
+
     const matchesFilter =
       activeFilter === "from_rec"
-        ? bus.stops?.some(stop => stop.is_pickup && stop.location.toLowerCase().includes("rec")) || 
+        ? stopsArr.some(stop => stop.is_pickup && (stop.location || "").toLowerCase().includes("rec")) || 
           (bus.from_location || "").toLowerCase().includes("rec")
         : activeFilter === "to_rec"
-          ? bus.stops?.some(stop => stop.is_dropoff && stop.location.toLowerCase().includes("rec")) || 
+          ? stopsArr.some(stop => stop.is_dropoff && (stop.location || "").toLowerCase().includes("rec")) || 
             (bus.to_location || "").toLowerCase().includes("rec")
           : true
 

@@ -106,7 +106,10 @@ class BookingOTPInline(admin.TabularInline):
 class BookingAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     resource_class = BookingResource
     list_display = ('student', 'bus', 'booking_date', 'trip_date', 'departure_time', 'from_location', 'to_location', 'selected_stop_display', 'status', 'otp_code')
-    list_filter = ('bus__route_name', 'trip_date', 'departure_time', 'booking_date', 'status')
+    # Django admin list_filter does not support traversing to a specific field on a related
+    # model using double-underscore syntax. Using 'bus__route_name' raises a FieldError in
+    # production (500 on the changelist). Filter by the related object instead.
+    list_filter = ('bus', 'trip_date', 'departure_time', 'booking_date', 'status')
     search_fields = ('student__email', 'student__first_name', 'student__last_name', 'bus__bus_no', 'from_location', 'to_location', 'selected_stop__stop_name', 'selected_stop__location')
     ordering = ('-booking_date',)
     readonly_fields = ('booking_date', 'otp_code')
@@ -287,95 +290,5 @@ admin.site.site_header = "Bus Booking System Administration"
 admin.site.site_title = "Bus Booking Admin"
 admin.site.index_title = "Welcome to Bus Booking System"
 
-# Customize the admin app list to show the desired structure
-
-# Customize the admin app list to show the desired structure
-def get_app_list(request):
-    """
-    Return a sorted list of all the installed apps that have been
-    registered in this site.
-    """
-    app_dict = {}
-
-    for model, model_admin in admin.site._registry.items():
-        app_label = model._meta.app_label
-
-        if app_label not in app_dict:
-            app_dict[app_label] = {
-                'name': app_label.title(),
-                'app_label': app_label,
-                'app_url': '/admin/%s/' % app_label,
-                'has_module_perms': True,
-                'models': [],
-            }
-
-        if model_admin.has_view_permission(request):
-            model_dict = {
-                'name': model._meta.verbose_name_plural,
-                'object_name': model._meta.object_name,
-                'perms': model_admin.get_model_perms(request),
-                'admin_url': None,
-                'add_url': None,
-            }
-            
-            if model_admin.has_change_permission(request):
-                model_dict['admin_url'] = '/admin/%s/%s/' % (app_label, model._meta.model_name)
-            if model_admin.has_add_permission(request):
-                model_dict['add_url'] = '/admin/%s/%s/add/' % (app_label, model._meta.model_name)
-                
-            app_dict[app_label]['models'].append(model_dict)
-
-    # Custom grouping for the booking app
-    if 'booking' in app_dict:
-        booking_app = app_dict['booking']
-        
-        # Create custom structure
-        custom_apps = []
-        
-        # Users group
-        users_app = {
-            'name': 'Users',
-            'app_label': 'users',
-            'app_url': '/admin/booking/student/',
-            'has_module_perms': True,
-            'models': [m for m in booking_app['models'] if m['object_name'] == 'Student']
-        }
-        custom_apps.append(users_app)
-        
-        # Booking group
-        booking_group_app = {
-            'name': 'Booking',
-            'app_label': 'booking_group',
-            'app_url': '/admin/booking/booking/',
-            'has_module_perms': True,
-            'models': [m for m in booking_app['models'] if m['object_name'] in ['Booking', 'BookingOTP']]
-        }
-        custom_apps.append(booking_group_app)
-        
-        # Bus Details group
-        bus_details_app = {
-            'name': 'Bus Details',
-            'app_label': 'bus_details',
-            'app_url': '/admin/booking/bus/',
-            'has_module_perms': True,
-            'models': [m for m in booking_app['models'] if m['object_name'] in ['Bus', 'Stop']]
-        }
-        custom_apps.append(bus_details_app)
-        
-        # Remove the original booking app and add our custom structure
-        del app_dict['booking']
-        for app in custom_apps:
-            if app['models']:  # Only add apps that have models
-                app_dict[app['app_label']] = app
-
-    # Filter out auth groups and other unwanted apps
-    filtered_apps = []
-    for app in app_dict.values():
-        # Skip auth groups and other unwanted apps
-        if app['app_label'] not in ['auth', 'sessions', 'contenttypes']:
-            filtered_apps.append(app)
-    
-    return sorted(filtered_apps, key=lambda x: x['name'].lower())
-
-# Override the default get_app_list method
-admin.site.get_app_list = get_app_list
+# Removed custom admin site app list override to avoid incompatibilities
+_unused = None

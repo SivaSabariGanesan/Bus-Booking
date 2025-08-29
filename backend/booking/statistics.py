@@ -3,6 +3,9 @@ from datetime import timedelta
 from .models import Student, Bus, Booking
 from django.db.models import Count, Q, Avg
 from django.db import models
+from dataclasses import dataclass
+from typing import List, Dict, Any
+import math
 
 
 class StatisticsDashboard:
@@ -63,3 +66,37 @@ class StatisticsDashboard:
             'bus_utilization': list(bus_utilization),
             'route_stats': list(route_stats),
         }
+
+
+@dataclass
+class RouteDemand:
+    route_name: str
+    date: str
+    total_confirmed: int
+    capacity_per_bus: int
+    required_buses: int
+
+
+def compute_route_demands(target_date=None) -> List[RouteDemand]:
+    if target_date is None:
+        target_date = timezone.now().date()
+    buses = Bus.objects.filter(departure_date=target_date)
+    routes = {}
+    for bus in buses:
+        key = (bus.route_name, target_date)
+        if key not in routes:
+            routes[key] = {
+                'capacity': bus.capacity,
+                'total': 0,
+            }
+        # Sum confirmed bookings across buses for this route/date
+        count = Booking.objects.filter(bus__route_name=bus.route_name, trip_date=target_date, status='confirmed').count()
+        routes[key]['total'] = count
+        routes[key]['capacity'] = bus.capacity  # assume uniform capacity per route
+    results: List[RouteDemand] = []
+    for (route_name, d), vals in routes.items():
+        capacity = max(1, vals['capacity'])
+        total = vals['total']
+        required = max(1, math.ceil(total / capacity))
+        results.append(RouteDemand(route_name, d.strftime('%Y-%m-%d'), total, capacity, required))
+    return results

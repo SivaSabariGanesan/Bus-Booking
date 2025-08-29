@@ -218,7 +218,7 @@ class BookingOTPAdmin(ImportExportModelAdmin, admin.ModelAdmin):
 class BusAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     resource_class = BusResource
     form = BusAdminForm
-    list_display = ('bus_no', 'route_name', 'from_location', 'to_location', 'departure_date', 'departure_time', 'capacity', 'available_seats', 'is_full', 'is_booking_open')
+    list_display = ('bus_no', 'route_name', 'from_location', 'to_location', 'departure_date', 'departure_time', 'capacity', 'available_seats', 'is_full', 'is_booking_open', 'route_confirmed_today', 'required_buses_today')
     list_filter = (DepartureDateFilter, 'route_name', 'from_location', 'to_location', 'is_booking_open')
     search_fields = ('bus_no', 'route_name', 'from_location', 'to_location')
     ordering = ('bus_no',)
@@ -240,6 +240,20 @@ class BusAdmin(ImportExportModelAdmin, admin.ModelAdmin):
             'fields': ('is_booking_open',)
         }),
     )
+    
+    def route_confirmed_today(self, obj):
+        try:
+            return obj.confirmed_bookings_for_route_on_date()
+        except Exception:
+            return '-'
+    route_confirmed_today.short_description = 'Route confirmed (today)'
+
+    def required_buses_today(self, obj):
+        try:
+            return obj.required_buses_for_route_on_date()
+        except Exception:
+            return '-'
+    required_buses_today.short_description = 'Required buses (today)'
     
     def set_today_departure(self, request, queryset):
         """Set selected buses to depart today"""

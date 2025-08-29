@@ -76,7 +76,19 @@ const apiCall = async (endpoint: string, options: RequestInit = {}) => {
     throw new ApiError(response.status, errorMessage);
   }
 
-  return response.json();
+  // Ensure we actually received JSON; otherwise bail with a helpful error
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    throw new ApiError(
+      response.status,
+      'Unexpected response type from server (expected JSON). Please try again later.'
+    );
+  }
+  try {
+    return await response.json();
+  } catch (e) {
+    throw new ApiError(response.status, 'Failed to parse server response.');
+  }
 };
 
 export const login = async (email: string, password: string) => {
@@ -108,7 +120,10 @@ export const getCurrentUser = async () => {
 };
 
 export const getBuses = async () => {
-  return apiCall('/buses/');
+  const data = await apiCall('/buses/');
+  if (Array.isArray(data)) return data;
+  if (data && Array.isArray(data.results)) return data.results;
+  return [];
 };
 
 export const getBusAvailableDates = async (busId: number, tripType: 'RETURN' | 'WEEKEND') => {

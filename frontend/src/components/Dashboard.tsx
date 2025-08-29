@@ -47,7 +47,7 @@ const Dashboard: React.FC = () => {
     try {
       setLoading(true)
       const [busesData, bookingData] = await Promise.all([getBuses(), getCurrentBooking()])
-      setBuses(busesData)
+      setBuses(Array.isArray(busesData) ? busesData : [])
       setCurrentBooking(bookingData)
       
       // Check if there's a pending booking
@@ -118,7 +118,8 @@ const Dashboard: React.FC = () => {
 
 
 
-  const filteredBuses = buses.filter((bus) => {
+  const busesArr: BusType[] = Array.isArray(buses) ? buses : []
+  const filteredBuses = busesArr.filter((bus) => {
     const query = searchQuery.trim().toLowerCase()
     const matchesQuery =
       !query ||

@@ -11,6 +11,4 @@ urlpatterns = [
     path('bookings/cancel/', views.cancel_booking, name='cancel_booking'),
     path('bookings/verify-otp/', views.verify_booking_otp, name='verify_booking_otp'),
     path('bookings/resend-otp/', views.resend_otp, name='resend_otp'),
-    path('debug-request/', views.debug_request, name='debug_request'),
-    path('test-booking-data/', views.test_booking_data, name='test_booking_data'),
 ]

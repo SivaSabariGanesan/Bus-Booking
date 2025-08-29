@@ -85,11 +85,6 @@ class BusListView(generics.ListAPIView):
 def debug_request(request):
     """Debug endpoint to see raw request data"""
     try:
-        print("=== DEBUG REQUEST ===")
-        print(f"Request method: {request.method}")
-        print(f"Content type: {request.content_type}")
-        print(f"Request data: {request.data}")
-        
         return Response({
             'success': True,
             'method': request.method,
@@ -97,55 +92,19 @@ def debug_request(request):
             'data': request.data,
         })
     except Exception as e:
-        print(f"Error in debug endpoint: {e}")
-        return Response({
-            'success': False,
-            'error': str(e)
-        }, status=500)
+        return Response({'error': str(e)}, status=500)
 
 
 @api_view(['POST'])
 def test_booking_data(request):
-    """Test endpoint to see what data is being received"""
-    print("=== TEST BOOKING DATA ===")
-    print(f"Request data: {request.data}")
-    print(f"Request data type: {type(request.data)}")
-    print(f"Content type: {request.content_type}")
-    
-    # Try to parse the data
+    """Test endpoint for booking data validation"""
     try:
-        bus_id = request.data.get('bus_id')
-        trip_date = request.data.get('trip_date')
-        departure_time = request.data.get('departure_time')
-        from_location = request.data.get('from_location')
-        to_location = request.data.get('to_location')
-        
-        print(f"Parsed data:")
-        print(f"  bus_id: {bus_id} (type: {type(bus_id)})")
-        print(f"  trip_date: {trip_date} (type: {type(trip_date)})")
-        print(f"  departure_time: {departure_time} (type: {type(departure_time)})")
-        print(f"  from_location: {from_location} (type: {type(from_location)})")
-        print(f"  to_location: {to_location} (type: {type(to_location)})")
-        
         return Response({
             'success': True,
-            'received_data': request.data,
-            'parsed_data': {
-                'bus_id': bus_id,
-                'trip_date': trip_date,
-                'departure_time': departure_time,
-                'from_location': from_location,
-                'to_location': to_location
-            }
+            'data': request.data,
         })
-        
     except Exception as e:
-        print(f"Error parsing data: {str(e)}")
-        return Response({
-            'success': False,
-            'error': str(e),
-            'received_data': request.data
-        }, status=400)
+        return Response({'error': str(e)}, status=500)
 
 
 class BookingCreateView(generics.CreateAPIView):
@@ -269,16 +228,8 @@ def verify_booking_otp(request):
         booking_otp = booking.otp
         if booking_otp.verified:
             return Response({'success': False, 'error': 'OTP already used'}, status=400)
-        # Check if OTP is expired
-        if not booking_otp.is_expired():
-            print("OTP is still valid")
-            # For development/testing, allow resending even if OTP is valid
-            print("Development mode: Allowing resend even for valid OTP")
-            # Uncomment the line below to enable strict validation in production
-            # return Response({
-            #     'success': False, 
-            #     'error': 'OTP is still valid. Please use the existing OTP.'
-            # }, status=400)
+        if timezone.now() > booking_otp.expires_at:
+            return Response({'success': False, 'error': 'OTP expired'}, status=400)
         if booking_otp.otp_code != otp:
             return Response({'success': False, 'error': 'Invalid OTP'}, status=400)
         # Mark OTP as verified and booking as confirmed
@@ -299,30 +250,18 @@ def verify_booking_otp(request):
 @permission_classes([IsAuthenticated])
 def resend_otp(request):
     """Resend OTP for expired bookings"""
-    print(f"=== RESEND OTP DEBUG ===")
-    print(f"Request user: {request.user}")
-    print(f"Request data: {request.data}")
-    print(f"Request method: {request.method}")
-    
     booking_id = request.data.get('booking_id')
-    print(f"Booking ID from request: {booking_id}")
-    
     if not booking_id:
-        print("Missing booking ID")
         return Response({'success': False, 'error': 'Missing booking ID'}, status=400)
     
     try:
         # First check if booking exists for this user
         booking = Booking.objects.get(id=booking_id, student=request.user, status='pending')
-        print(f"Found booking: {booking.id} for user: {booking.student.email}")
         
         # Check if booking has an OTP
         try:
             booking_otp = booking.otp
-            print(f"OTP found: {booking_otp.otp_code}, expires at: {booking_otp.expires_at}")
-            print(f"OTP is expired: {booking_otp.is_expired()}")
         except BookingOTP.DoesNotExist:
-            print("No OTP found for this booking, creating new one...")
             # Create new OTP if none exists
             otp_code = str(random.randint(100000, 999999))
             expires_at = timezone.now() + timedelta(minutes=15)
@@ -331,39 +270,29 @@ def resend_otp(request):
                 otp_code=otp_code,
                 expires_at=expires_at,
             )
-            print(f"Created new OTP: {otp_code}")
         
-        # Check if OTP is expired (development mode allows resending even for valid OTPs)
+        # Check if OTP is expired - production security
         if not booking_otp.is_expired():
-            print("OTP is still valid - but allowing resend in development mode")
-            # In production, uncomment the lines below to prevent resending valid OTPs
-            # return Response({
-            #     'success': False, 
-            #     'error': 'OTP is still valid. Please use the existing OTP.'
-            # }, status=400)
+            return Response({
+                'success': False, 
+                'error': 'OTP is still valid. Please use the existing OTP.'
+            }, status=400)
         
         # Regenerate OTP
-        print("Regenerating OTP...")
         new_otp = booking_otp.regenerate_otp()
-        print(f"New OTP generated: {new_otp}")
         
         return Response({
             'success': True, 
-            'message': 'New OTP sent successfully',
-            'new_otp': new_otp  # For debugging purposes, remove in production
+            'message': 'New OTP sent successfully'
         })
         
     except Booking.DoesNotExist:
-        print(f"Booking not found for ID: {booking_id} and user: {request.user.email}")
         return Response({
             'success': False, 
             'error': 'Booking not found or you do not have permission to access it'
         }, status=404)
     except Exception as e:
-        print(f"Exception occurred: {str(e)}")
-        import traceback
-        traceback.print_exc()
         return Response({
             'success': False, 
-            'error': f'Failed to resend OTP: {str(e)}'
+            'error': 'Failed to resend OTP. Please try again later.'
         }, status=500)

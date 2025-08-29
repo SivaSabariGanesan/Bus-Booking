@@ -166,44 +166,42 @@ const Dashboard: React.FC = () => {
       <Navbar />
 
       <div className="container mx-auto px-4 pt-32 pb-8 space-y-6">
-        <Card>
-          <CardContent className="p-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search buses and routes"
-                className="pl-10"
-              />
-            </div>
-          </CardContent>
-        </Card>
+        {/* Search Input */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search buses and routes"
+            className="pl-10"
+          />
+        </div>
 
-                 <div className="flex flex-wrap gap-2">
-           {[
-             { key: "from_rec", label: "From REC", description: "Buses departing from REC" },
-             { key: "to_rec", label: "To REC", description: "Buses arriving at REC" },
-           ].map(({ key, label, description }) => (
-             <Button
-               key={key}
-               variant={activeFilter === key ? "default" : "outline"}
-               size="sm"
-               onClick={() => setActiveFilter(key as any)}
-               title={description}
-             >
-               {label}
-             </Button>
-           ))}
-         </div>
-         
-         <p className="text-sm text-muted-foreground">
-           {activeFilter === "from_rec" 
-             ? "Showing buses where REC is a pickup point. REC will be automatically selected as your pickup location."
-             : "Showing buses where REC is a drop-off point. REC will be automatically selected as your drop-off location."
-           }
-         </p>
+        {/* Filter Buttons */}
+        <div className="flex flex-wrap gap-2">
+          {[
+            { key: "from_rec", label: "From REC", description: "Buses departing from REC" },
+            { key: "to_rec", label: "To REC", description: "Buses arriving at REC" },
+          ].map(({ key, label, description }) => (
+            <Button
+              key={key}
+              variant={activeFilter === key ? "default" : "outline"}
+              size="sm"
+              onClick={() => setActiveFilter(key as any)}
+              title={description}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+        
+        <p className="text-sm text-muted-foreground">
+          {activeFilter === "from_rec" 
+            ? "Showing buses where REC is a pickup point. REC will be automatically selected as your pickup location."
+            : "Showing buses where REC is a drop-off point. REC will be automatically selected as your drop-off location."
+          }
+        </p>
 
         {error && (
           <Alert variant="destructive">
@@ -212,54 +210,63 @@ const Dashboard: React.FC = () => {
           </Alert>
         )}
 
-                 {currentBooking && currentBooking.status === 'confirmed' && (
-           <Alert>
-             <CheckCircle className="h-4 w-4" />
-             <AlertDescription>
-               You have an active booking. You can only have one booking at a time. 
-               View your booking details in the "My Booking" section.
-             </AlertDescription>
-           </Alert>
-         )}
+        {currentBooking && currentBooking.status === 'confirmed' && (
+          <Alert>
+            <CheckCircle className="h-4 w-4" />
+            <AlertDescription>
+              You have an active booking. You can only have one booking at a time. 
+              View your booking details in the "My Booking" section.
+            </AlertDescription>
+          </Alert>
+        )}
 
-         {hasPendingBooking && (
-           <Alert>
-             <CheckCircle className="h-4 w-4" />
-             <AlertDescription>
-               You have a pending booking that requires OTP verification. 
-               Please go to "My Booking" to complete your booking.
-             </AlertDescription>
-           </Alert>
-         )}
+        {hasPendingBooking && (
+          <Alert>
+            <CheckCircle className="h-4 w-4" />
+            <AlertDescription>
+              You have a pending booking that requires OTP verification. 
+              Please go to "My Booking" to complete your booking.
+            </AlertDescription>
+          </Alert>
+        )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Bus className="h-5 w-5" />
-              Available Buses
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {filteredBuses.length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">No buses match your search criteria</p>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {filteredBuses.map((bus) => (
-                                                          <BusCard
-                       key={bus.id}
-                       bus={bus}
-                       onBook={(selectedStopId) => handleBookBus(bus.id, selectedStopId)}
-                       loading={bookingLoading === bus.id}
-                       isBooked={!!(currentBooking && currentBooking.status === 'confirmed')}
-                       activeFilter={activeFilter}
-                     />
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Available Buses Section */}
+        <div>
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <Bus className="h-5 w-5" />
+            Available Buses
+          </h2>
+          
+          {filteredBuses.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No buses match your search criteria</p>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {(() => {
+                // Sort buses: booked bus first, then others
+                const sortedBuses = [...filteredBuses].sort((a, b) => {
+                  if (currentBooking && currentBooking.status === 'confirmed') {
+                    // If user has a confirmed booking, show that bus first
+                    if (a.id === currentBooking.bus.id) return -1;
+                    if (b.id === currentBooking.bus.id) return 1;
+                  }
+                  return 0;
+                });
 
-
+                return sortedBuses.map((bus) => (
+                  <BusCard
+                    key={bus.id}
+                    bus={bus}
+                    onBook={(selectedStopId) => handleBookBus(bus.id, selectedStopId)}
+                    loading={bookingLoading === bus.id}
+                    isBooked={!!(currentBooking && currentBooking.status === 'confirmed' && currentBooking.bus.id === bus.id)}
+                    activeFilter={activeFilter}
+                    hasConfirmedBooking={!!(currentBooking && currentBooking.status === 'confirmed')}
+                  />
+                ));
+              })()}
+            </div>
+          )}
+        </div>
       </div>
 
       

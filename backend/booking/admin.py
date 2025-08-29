@@ -105,11 +105,6 @@ class BookingOTPInline(admin.TabularInline):
 @admin.register(Booking)
 class BookingAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     resource_class = BookingResource
-    def selected_stop_display(self, obj):
-        if obj.selected_stop:
-            return f"{obj.selected_stop.stop_name} ({obj.selected_stop.location})"
-        return "-"
-    selected_stop_display.short_description = "Selected Stop"
     list_display = ('student', 'bus', 'booking_date', 'trip_date', 'departure_time', 'from_location', 'to_location', 'selected_stop_display', 'status', 'otp_code')
     list_filter = ('bus__route_name', 'trip_date', 'departure_time', 'booking_date', 'status')
     search_fields = ('student__email', 'student__first_name', 'student__last_name', 'bus__bus_no', 'from_location', 'to_location', 'selected_stop__stop_name', 'selected_stop__location')
@@ -128,6 +123,12 @@ class BookingAdmin(ImportExportModelAdmin, admin.ModelAdmin):
             return ('booking_date',)
         return ()
 
+    def selected_stop_display(self, obj):
+        if obj.selected_stop:
+            return f"{obj.selected_stop.stop_name} ({obj.selected_stop.location})"
+        return '-'
+    selected_stop_display.short_description = 'Selected Stop'
+
     def otp_code(self, obj):
         if hasattr(obj, 'otp') and obj.otp:
             return obj.otp.otp_code
@@ -138,16 +139,76 @@ class BookingAdmin(ImportExportModelAdmin, admin.ModelAdmin):
 @admin.register(BookingOTP)
 class BookingOTPAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     resource_class = BookingOTPResource
-    list_display = ('booking', 'otp_code', 'created_at', 'expires_at', 'verified', 'is_expired')
+    list_display = ('booking', 'otp_code', 'created_at', 'expires_at', 'verified', 'is_expired', 'time_remaining')
     list_filter = ('verified', 'created_at', 'expires_at')
     search_fields = ('booking__student__email', 'booking__student__first_name', 'otp_code')
     ordering = ('-created_at',)
     readonly_fields = ('otp_code', 'created_at', 'expires_at')
+    actions = ['resend_expired_otps']
+    
+    fieldsets = (
+        ('OTP Information', {
+            'fields': ('booking', 'otp_code', 'created_at', 'expires_at', 'verified')
+        }),
+        ('Actions', {
+            'fields': (),
+            'description': 'Use the "Resend OTP" action below for expired OTPs'
+        }),
+    )
     
     def is_expired(self, obj):
-        return timezone.now() > obj.expires_at
+        return obj.is_expired()
     is_expired.boolean = True
     is_expired.short_description = 'Expired'
+    
+    def time_remaining(self, obj):
+        if obj.is_expired():
+            return "Expired"
+        remaining = obj.expires_at - timezone.now()
+        minutes = int(remaining.total_seconds() // 60)
+        seconds = int(remaining.total_seconds() % 60)
+        return f"{minutes}m {seconds}s"
+    time_remaining.short_description = 'Time Remaining'
+    
+    def resend_expired_otps(self, request, queryset):
+        """Admin action to resend OTPs for expired entries"""
+        expired_otps = queryset.filter(expires_at__lt=timezone.now())
+        count = 0
+        
+        for otp in expired_otps:
+            try:
+                otp.regenerate_otp()
+                count += 1
+            except Exception as e:
+                self.message_user(request, f"Failed to resend OTP for booking {otp.booking.id}: {str(e)}", level='ERROR')
+        
+        if count > 0:
+            self.message_user(request, f"Successfully resent {count} OTP(s)")
+        else:
+            self.message_user(request, "No expired OTPs found in the selection")
+    
+    resend_expired_otps.short_description = "Resend OTP for expired entries"
+    
+    def get_actions(self, request):
+        actions = super().get_actions(request)
+        # Add a custom action for resending individual OTP
+        actions['resend_single_otp'] = (self.resend_single_otp, 'resend_single_otp', "Resend OTP")
+        return actions
+    
+    def resend_single_otp(self, modeladmin, request, queryset):
+        """Resend OTP for a single booking"""
+        if len(queryset) != 1:
+            self.message_user(request, "Please select exactly one OTP to resend", level='ERROR')
+            return
+        
+        otp = queryset.first()
+        try:
+            new_otp = otp.regenerate_otp()
+            self.message_user(request, f"OTP resent successfully. New OTP: {new_otp}")
+        except Exception as e:
+            self.message_user(request, f"Failed to resend OTP: {str(e)}", level='ERROR')
+    
+    resend_single_otp.short_description = "Resend OTP"
 
 
 # Bus Details Group - Buses and Stops

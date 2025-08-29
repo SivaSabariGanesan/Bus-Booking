@@ -59,6 +59,15 @@ class BookingResource(resources.ModelResource):
         attribute='bus',
         widget=ForeignKeyWidget(Bus, 'bus_no')
     )
+    selected_stop = fields.Field(
+        column_name='selected_stop',
+        attribute='selected_stop',
+        widget=ForeignKeyWidget('booking.Stop', 'stop_name')
+    )
+    selected_stop_location = fields.Field(
+        column_name='selected_stop_location',
+        attribute='selected_stop__location'
+    )
     trip_date = fields.Field(
         column_name='trip_date',
         attribute='trip_date',
@@ -75,7 +84,7 @@ class BookingResource(resources.ModelResource):
         import_id_fields = ('id',)
         fields = (
             'id', 'student', 'bus', 'trip_date', 'departure_time',
-            'from_location', 'to_location', 'status'
+            'from_location', 'to_location', 'selected_stop', 'selected_stop_location', 'status'
         )
         export_order = fields
         skip_unchanged = True

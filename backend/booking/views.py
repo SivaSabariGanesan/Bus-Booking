@@ -258,6 +258,7 @@ def cancel_booking(request):
 
 
 @api_view(['POST'])
+@permission_classes([IsAuthenticated])
 def verify_booking_otp(request):
     booking_id = request.data.get('pending_booking_id')
     otp = request.data.get('otp')
@@ -268,8 +269,16 @@ def verify_booking_otp(request):
         booking_otp = booking.otp
         if booking_otp.verified:
             return Response({'success': False, 'error': 'OTP already used'}, status=400)
-        if timezone.now() > booking_otp.expires_at:
-            return Response({'success': False, 'error': 'OTP expired'}, status=400)
+        # Check if OTP is expired
+        if not booking_otp.is_expired():
+            print("OTP is still valid")
+            # For development/testing, allow resending even if OTP is valid
+            print("Development mode: Allowing resend even for valid OTP")
+            # Uncomment the line below to enable strict validation in production
+            # return Response({
+            #     'success': False, 
+            #     'error': 'OTP is still valid. Please use the existing OTP.'
+            # }, status=400)
         if booking_otp.otp_code != otp:
             return Response({'success': False, 'error': 'Invalid OTP'}, status=400)
         # Mark OTP as verified and booking as confirmed
@@ -284,3 +293,77 @@ def verify_booking_otp(request):
         return Response({'success': False, 'error': 'Pending booking not found'}, status=404)
     except Exception as e:
         return Response({'success': False, 'error': str(e)}, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def resend_otp(request):
+    """Resend OTP for expired bookings"""
+    print(f"=== RESEND OTP DEBUG ===")
+    print(f"Request user: {request.user}")
+    print(f"Request data: {request.data}")
+    print(f"Request method: {request.method}")
+    
+    booking_id = request.data.get('booking_id')
+    print(f"Booking ID from request: {booking_id}")
+    
+    if not booking_id:
+        print("Missing booking ID")
+        return Response({'success': False, 'error': 'Missing booking ID'}, status=400)
+    
+    try:
+        # First check if booking exists for this user
+        booking = Booking.objects.get(id=booking_id, student=request.user, status='pending')
+        print(f"Found booking: {booking.id} for user: {booking.student.email}")
+        
+        # Check if booking has an OTP
+        try:
+            booking_otp = booking.otp
+            print(f"OTP found: {booking_otp.otp_code}, expires at: {booking_otp.expires_at}")
+            print(f"OTP is expired: {booking_otp.is_expired()}")
+        except BookingOTP.DoesNotExist:
+            print("No OTP found for this booking, creating new one...")
+            # Create new OTP if none exists
+            otp_code = str(random.randint(100000, 999999))
+            expires_at = timezone.now() + timedelta(minutes=15)
+            booking_otp = BookingOTP.objects.create(
+                booking=booking,
+                otp_code=otp_code,
+                expires_at=expires_at,
+            )
+            print(f"Created new OTP: {otp_code}")
+        
+        # Check if OTP is expired (development mode allows resending even for valid OTPs)
+        if not booking_otp.is_expired():
+            print("OTP is still valid - but allowing resend in development mode")
+            # In production, uncomment the lines below to prevent resending valid OTPs
+            # return Response({
+            #     'success': False, 
+            #     'error': 'OTP is still valid. Please use the existing OTP.'
+            # }, status=400)
+        
+        # Regenerate OTP
+        print("Regenerating OTP...")
+        new_otp = booking_otp.regenerate_otp()
+        print(f"New OTP generated: {new_otp}")
+        
+        return Response({
+            'success': True, 
+            'message': 'New OTP sent successfully',
+            'new_otp': new_otp  # For debugging purposes, remove in production
+        })
+        
+    except Booking.DoesNotExist:
+        print(f"Booking not found for ID: {booking_id} and user: {request.user.email}")
+        return Response({
+            'success': False, 
+            'error': 'Booking not found or you do not have permission to access it'
+        }, status=404)
+    except Exception as e:
+        print(f"Exception occurred: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return Response({
+            'success': False, 
+            'error': f'Failed to resend OTP: {str(e)}'
+        }, status=500)

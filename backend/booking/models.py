@@ -242,3 +242,60 @@ class BookingOTP(models.Model):
 
     def __str__(self):
         return f"OTP for Booking {self.booking.id} - Verified: {self.verified}"
+    
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+    
+    def regenerate_otp(self):
+        """Regenerate OTP for expired OTPs"""
+        import random
+        import string
+        from datetime import timedelta
+        
+        # Generate new 6-digit OTP
+        self.otp_code = ''.join(random.choices(string.digits, k=6))
+        
+        # Set new expiration time (15 minutes from now)
+        self.expires_at = timezone.now() + timedelta(minutes=15)
+        
+        # Reset verification status
+        self.verified = False
+        
+        # Save the changes
+        self.save()
+        
+        # Send new OTP email
+        self.send_otp_email()
+        
+        return self.otp_code
+    
+    def send_otp_email(self):
+        """Send OTP email to the student"""
+        subject = f'New OTP for Booking - {self.booking.bus.route_name}'
+        message = f"""
+        Dear {self.booking.student.full_name},
+        
+        A new OTP has been generated for your booking.
+        
+        Booking Details:
+        - Bus Number: {self.booking.bus.bus_no}
+        - Route: {self.booking.bus.route_name}
+        - Trip Date: {self.booking.trip_date.strftime('%Y-%m-%d')}
+        - Departure Time: {self.booking.departure_time}
+        
+        Your new OTP: {self.otp_code}
+        Expires at: {self.expires_at.strftime('%Y-%m-%d %H:%M')}
+        
+        Please use this OTP to verify your booking.
+        
+        Thank you!
+        College Transport Team
+        """
+        
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [self.booking.student.email],
+            fail_silently=False,
+        )

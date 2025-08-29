@@ -178,7 +178,6 @@ AUTH_USER_MODEL = 'booking.Student'
 UNFOLD = {
     "SITE_TITLE": "College Transport Admin",
     "SITE_HEADER": "College Transport",
-    "SITE_SYMBOL": "🚌",
     "COLORS": {
         "primary": {
             "50": "250 245 255",

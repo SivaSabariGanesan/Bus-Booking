@@ -361,10 +361,11 @@ _original_get_app_list = admin.site.get_app_list
 def _group_booking_app_list(request):
     """Return a custom grouped app list for the `booking` app only.
 
-    Groups:
-    - Bookings: Booking otp, Bookings
-    - Bus Details: Buses, Stops
-    - Users and groups: Students
+    Groups in order:
+    1. Authentication and Authorization
+    2. Users and groups: Students, SiteConfiguration
+    3. Bookings: BookingOTP, Booking
+    4. Bus Details: Buses, Stops
     Any other apps remain as-is below these groups.
     """
     try:
@@ -386,7 +387,25 @@ def _group_booking_app_list(request):
                 items.append(model_info)
         return items
 
+    # Get Django's built-in auth models
+    auth_app = app_dict.get('auth')
+    auth_models = auth_app['models'] if auth_app else []
+
     grouped = [
+        {
+            'name': 'Authentication and Authorization',
+            'app_label': 'auth',
+            'app_url': '',
+            'has_module_perms': True,
+            'models': auth_models,  # Include Django's built-in auth models
+        },
+        {
+            'name': 'Users and groups',
+            'app_label': 'users_and_groups',
+            'app_url': '',
+            'has_module_perms': True,
+            'models': pick(['Student', 'SiteConfiguration']),
+        },
         {
             'name': 'Bookings',
             'app_label': 'bookings',
@@ -401,16 +420,11 @@ def _group_booking_app_list(request):
             'has_module_perms': True,
             'models': pick(['Bus', 'Stop']),
         },
-        {
-            'name': 'Users and groups',
-            'app_label': 'users_and_groups',
-            'app_url': '',
-            'has_module_perms': True,
-            'models': pick(['Student', 'SiteConfiguration']),
-        },
     ]
 
-    others = [app for app in _original_get_app_list(request) if app.get('app_label') != 'booking']
+    # Filter out auth and booking apps from others since we're handling them separately
+    others = [app for app in _original_get_app_list(request) 
+              if app.get('app_label') not in ['booking', 'auth']]
     return grouped + others
 
 

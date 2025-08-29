@@ -81,6 +81,67 @@ class Student(AbstractBaseUser):
             if trip_datetime > now:
                 return True
         return False
+    
+    def has_outbound_booking(self):
+        """Check if student has an active outbound booking (FROM REC)"""
+        return self.booking_set.filter(
+            is_outbound_trip=True,
+            status__in=['pending', 'confirmed']
+        ).exists()
+    
+    def has_return_booking(self):
+        """Check if student has an active return booking (TO REC)"""
+        return self.booking_set.filter(
+            is_outbound_trip=False,
+            status__in=['pending', 'confirmed']
+        ).exists()
+    
+    def can_book_return_trip(self):
+        """Check if student can book a return trip (24-hour period completed or Swift override applied)"""
+        outbound_booking = self.booking_set.filter(
+            is_outbound_trip=True,
+            status__in=['pending', 'confirmed']
+        ).first()
+        
+        if not outbound_booking:
+            return False
+        
+        # Check if 24-hour period is completed
+        if outbound_booking.return_trip_available_after:
+            from django.utils import timezone
+            return timezone.now() >= outbound_booking.return_trip_available_after
+        
+        return False
+    
+    def get_return_trip_availability_time(self):
+        """Get when return trip becomes available"""
+        outbound_booking = self.booking_set.filter(
+            is_outbound_trip=True,
+            status__in=['pending', 'confirmed']
+        ).first()
+        
+        if outbound_booking and outbound_booking.return_trip_available_after:
+            return outbound_booking.return_trip_available_after
+        
+        return None
+    
+    def should_book_return_trip(self):
+        """Check if student should book return trip (outbound completed or cancelled)"""
+        # Check if student has a cancelled outbound booking (completed trip)
+        cancelled_outbound = self.booking_set.filter(
+            is_outbound_trip=True,
+            status='cancelled'
+        ).exists()
+        
+        # Check if student has an active outbound booking that's ready for return
+        active_outbound_ready = self.booking_set.filter(
+            is_outbound_trip=True,
+            status__in=['pending', 'confirmed']
+        ).filter(
+            return_trip_available_after__lte=timezone.now()
+        ).exists()
+        
+        return cancelled_outbound or active_outbound_ready
 
 
 class Bus(models.Model):
@@ -125,6 +186,16 @@ class Bus(models.Model):
             'formatted_date': self.departure_date.strftime('%A, %B %d, %Y'),
             'formatted_time': self.departure_time.strftime('%I:%M %p')
         }
+    
+    # Note: These methods are deprecated since we now use the same buses for both directions
+    # The system determines direction based on the is_outbound_trip field in the booking
+    # def is_outbound_bus(self):
+    #     """Check if this is an outbound bus (FROM REC)"""
+    #     return "REC" in self.from_location.upper()
+    
+    # def is_return_bus(self):
+    #     """Check if this is a return bus (TO REC)"""
+    #     return "REC" in self.to_location.upper()
     
     # Demand analytics
     def _target_trip_date_for_route(self):
@@ -197,17 +268,20 @@ class Booking(models.Model):
     departure_time = models.TimeField(default=get_default_time)  # Actual departure time for this booking
     from_location = models.CharField(max_length=100, default="")
     to_location = models.CharField(max_length=100, default="")
+    is_outbound_trip = models.BooleanField(default=True, help_text="True = FROM REC, False = TO REC")
+    outbound_booking_date = models.DateTimeField(null=True, blank=True, help_text="When outbound trip was booked")
+    return_trip_available_after = models.DateTimeField(null=True, blank=True, help_text="24hrs after outbound booking")
     is_return_trip = models.BooleanField(default=True)
     selected_stop = models.ForeignKey('Stop', null=True, blank=True, on_delete=models.SET_NULL, related_name='bookings_selected')
     
     STATUS_CHOICES = [
         ('pending', 'Pending'),
         ('confirmed', 'Confirmed'),
+        ('cancelled', 'Cancelled'),
     ]
     status = models.CharField(max_length=10, choices=STATUS_CHOICES, default='pending')
     
     class Meta:
-        unique_together = ['student', 'bus']
         verbose_name = 'Booking'
         verbose_name_plural = 'Bookings'
     

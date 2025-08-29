@@ -172,7 +172,8 @@ export const createBooking = async (
   departureTime: string,
   fromLocation: string,
   toLocation: string,
-  selectedStopId: number
+  selectedStopId: number,
+  isOutboundTrip: boolean = true
 ) => {
   try {
     const response = await apiCall('/bookings/', {
@@ -183,7 +184,8 @@ export const createBooking = async (
         departure_time: departureTime, 
         from_location: fromLocation, 
         to_location: toLocation,
-        selected_stop_id: selectedStopId
+        selected_stop_id: selectedStopId,
+        is_outbound_trip: isOutboundTrip
       }),
     });
     if (response.success) {
@@ -234,3 +236,4 @@ export const resendOtp = async (bookingId: number) => {
   });
   return response;
 };
+

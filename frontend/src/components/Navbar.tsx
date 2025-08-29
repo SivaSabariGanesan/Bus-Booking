@@ -85,6 +85,7 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                         {/* Student menu */}
                         <HoveredLink href="/profile">Profile</HoveredLink>
                         <HoveredLink href="/my-booking">My Booking</HoveredLink>
+
                         <button
                           onClick={handleLogout}
                           className="text-left text-gray-700 hover:text-red-600 transition-colors duration-200"
@@ -150,6 +151,9 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                        <Link to="/my-booking" className="text-gray-700 hover:text-black transition-colors duration-200">
                          My Booking
                        </Link>
+                     </div>
+                     <div className="py-2">
+
                      </div>
                      <div className="py-2">
                        <button

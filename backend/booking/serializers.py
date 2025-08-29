@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from .models import Student, Bus, Booking, Stop, SiteConfiguration
+from django.utils import timezone
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -21,12 +22,27 @@ class BusSerializer(serializers.ModelSerializer):
     is_full = serializers.ReadOnlyField()
     route_display = serializers.ReadOnlyField()
     stops = StopSerializer(many=True, read_only=True)
+    display_direction = serializers.SerializerMethodField()
     
     class Meta:
         model = Bus
         fields = ['id', 'bus_no', 'route_name', 'from_location', 'to_location', 
                  'route_display', 'departure_date', 'departure_time', 
-                 'capacity', 'available_seats', 'is_full', 'stops', 'is_booking_open']
+                 'capacity', 'available_seats', 'is_full', 'stops', 'is_booking_open', 'display_direction']
+    
+    def get_display_direction(self, obj):
+        """Return the display direction based on student's booking status"""
+        request = self.context.get('request')
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            user = request.user
+            if user.should_book_return_trip():
+                # For return trips, show as "Destination → REC College"
+                return f"{obj.to_location} → REC College"
+            else:
+                # For outbound trips, show as "REC College → Destination"
+                return f"REC College → {obj.to_location}"
+        # Default fallback
+        return obj.route_display
 
 
 class BookingSerializer(serializers.ModelSerializer):
@@ -36,7 +52,7 @@ class BookingSerializer(serializers.ModelSerializer):
     selected_stop = StopSerializer(read_only=True)
     class Meta:
         model = Booking
-        fields = ['id', 'student', 'bus', 'booking_date', 'trip_date', 'departure_time', 'from_location', 'to_location', 'selected_stop', 'status']
+        fields = ['id', 'student', 'bus', 'booking_date', 'trip_date', 'departure_time', 'from_location', 'to_location', 'selected_stop', 'status', 'is_outbound_trip', 'outbound_booking_date', 'return_trip_available_after']
 
 
 class CreateBookingSerializer(serializers.Serializer):
@@ -46,6 +62,7 @@ class CreateBookingSerializer(serializers.Serializer):
     from_location = serializers.CharField(max_length=100, allow_blank=True, default='')
     to_location = serializers.CharField(max_length=100, allow_blank=True, default='')
     selected_stop_id = serializers.IntegerField(required=True)
+    is_outbound_trip = serializers.BooleanField(default=True)
     
     def validate_trip_date(self, value):
         from datetime import date
@@ -80,14 +97,50 @@ class CreateBookingSerializer(serializers.Serializer):
     
     def validate(self, data):
         user = self.context['request'].user
+        bus_id = data.get('bus_id')
+        is_outbound_trip = data.get('is_outbound_trip', True)
         
         try:
-            has_booking = user.has_active_booking()
+            bus = Bus.objects.get(id=bus_id)
             
-            if has_booking:
-                raise serializers.ValidationError("You already have an active booking")
+            # Check if user already has a booking of the same type
+            if is_outbound_trip and user.has_outbound_booking():
+                raise serializers.ValidationError("You already have an active outbound booking")
+            
+            if not is_outbound_trip and user.has_return_booking():
+                raise serializers.ValidationError("You already have an active return booking")
+            
+            # Prevent booking outbound trips if student should book return trip
+            # Student should only book return trips after outbound is completed
+            if is_outbound_trip and user.should_book_return_trip():
+                raise serializers.ValidationError("You have completed your outbound trip. You can now only book return trips.")
+            
+            # For return trips, check if student should book return trip
+            if not is_outbound_trip:
+                if not user.should_book_return_trip():
+                    # Check if student has any outbound booking history
+                    has_outbound_history = user.booking_set.filter(is_outbound_trip=True).exists()
+                    if not has_outbound_history:
+                        raise serializers.ValidationError("You must book an outbound trip first")
+                    else:
+                        # Student has outbound history but not ready for return
+                        availability_time = user.get_return_trip_availability_time()
+                        if availability_time:
+                            from datetime import timedelta
+                            time_remaining = availability_time - timezone.now()
+                            hours_remaining = int(time_remaining.total_seconds() / 3600)
+                            minutes_remaining = int((time_remaining.total_seconds() % 3600) / 60)
+                            raise serializers.ValidationError(f"Return trip available in {hours_remaining} hours and {minutes_remaining} minutes")
+                        else:
+                            raise serializers.ValidationError("Return trip not available yet")
+            
+            # Note: Same buses are used for both outbound and return trips
+            # The system determines the direction based on is_outbound_trip field
+            # No need to validate bus direction - all buses are available for both trip types
             
             return data
+        except Bus.DoesNotExist:
+            raise serializers.ValidationError("Bus not found")
         except Exception as e:
             raise serializers.ValidationError(f"Validation error: {str(e)}")
 

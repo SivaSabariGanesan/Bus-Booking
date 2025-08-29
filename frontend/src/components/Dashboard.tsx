@@ -3,7 +3,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { Bus, Search, CheckCircle, XCircle } from "lucide-react"
+import { Bus, Search, CheckCircle, XCircle, AlertTriangle } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card"
 import { Button } from "../components/ui/button"
 import { Input } from "../components/ui/input"
@@ -28,6 +28,7 @@ const Dashboard: React.FC = () => {
 
   const [searchQuery, setSearchQuery] = useState("")
   const [activeFilter, setActiveFilter] = useState<"from_rec" | "to_rec">("from_rec")
+  const [userShouldBookReturn, setUserShouldBookReturn] = useState(false)
 
   useEffect(() => {
     const today = new Date()
@@ -57,6 +58,18 @@ const Dashboard: React.FC = () => {
       } else {
         setHasPendingBooking(false)
       }
+
+      // Determine if user should book return trip based on bus display directions
+      if (Array.isArray(busesData) && busesData.length > 0) {
+        const firstBus = busesData[0]
+        if (firstBus.display_direction && firstBus.display_direction.includes('→ REC College')) {
+          setUserShouldBookReturn(true)
+          setActiveFilter("to_rec")
+        } else {
+          setUserShouldBookReturn(false)
+          setActiveFilter("from_rec")
+        }
+      }
     } catch (err) {
       setError("Failed to load data")
     } finally {
@@ -82,9 +95,18 @@ const Dashboard: React.FC = () => {
     const bus = buses.find((b) => b.id === busId)
     if (!bus || bus.is_full) return
 
-    // Get stop information
+    // Check if user is trying to book FROM REC when they should book TO REC
+    if (userShouldBookReturn && bus.display_direction && !bus.display_direction.includes('→ REC College')) {
+      toast.error("You have completed your outbound trip. You can now only book return trips (TO REC).")
+      return
+    }
+
+    // Get stop information and determine trip type
     const fromLocation = bus.from_location || ""
     const toLocation = bus.to_location || ""
+    
+    // Determine if this is an outbound or return trip based on user state
+    const isOutboundTrip = !userShouldBookReturn
     
     setBookingLoading(busId)
     try {
@@ -94,7 +116,8 @@ const Dashboard: React.FC = () => {
         selectedDepartureTime,
         fromLocation,
         toLocation,
-        selectedStopId
+        selectedStopId,
+        isOutboundTrip
       )
 
       if (response && response.otp_sent && response.pending_booking_id) {
@@ -115,10 +138,6 @@ const Dashboard: React.FC = () => {
     }
   }
 
-
-
-
-
   const busesArr: BusType[] = Array.isArray(buses) ? buses : []
   const filteredBuses = busesArr.filter((bus) => {
     const query = searchQuery.trim().toLowerCase()
@@ -127,17 +146,15 @@ const Dashboard: React.FC = () => {
       bus.bus_no.toLowerCase().includes(query) ||
       bus.route_name.toLowerCase().includes(query) ||
       (bus.from_location || "").toLowerCase().includes(query) ||
-      (bus.to_location || "").toLowerCase().includes(query)
+      (bus.to_location || "").toLowerCase().includes(query) ||
+      (bus.display_direction || "").toLowerCase().includes(query)
 
-    const stopsArr = Array.isArray(bus.stops) ? bus.stops : []
-
-    const matchesFilter =
+    // Filter based on display_direction from API
+    const matchesFilter = 
       activeFilter === "from_rec"
-        ? stopsArr.some(stop => stop.is_pickup && (stop.location || "").toLowerCase().includes("rec")) || 
-          (bus.from_location || "").toLowerCase().includes("rec")
+        ? (bus.display_direction && bus.display_direction.includes('REC College →'))
         : activeFilter === "to_rec"
-          ? stopsArr.some(stop => stop.is_dropoff && (stop.location || "").toLowerCase().includes("rec")) || 
-            (bus.to_location || "").toLowerCase().includes("rec")
+          ? (bus.display_direction && bus.display_direction.includes('→ REC College'))
           : true
 
     return matchesQuery && matchesFilter
@@ -179,6 +196,17 @@ const Dashboard: React.FC = () => {
           />
         </div>
 
+        {/* Booking Status Alert */}
+        {userShouldBookReturn && (
+          <Alert className="border-blue-200 bg-blue-50">
+            <AlertTriangle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-blue-800">
+              <strong>Return Trip Available!</strong> You have completed your outbound journey. 
+              You can now book your return trip to REC College.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Filter Buttons */}
         <div className="flex flex-wrap gap-2">
           {[
@@ -191,6 +219,7 @@ const Dashboard: React.FC = () => {
               size="sm"
               onClick={() => setActiveFilter(key as any)}
               title={description}
+              disabled={userShouldBookReturn && key === "from_rec"}
             >
               {label}
             </Button>
@@ -198,9 +227,11 @@ const Dashboard: React.FC = () => {
         </div>
         
         <p className="text-sm text-muted-foreground">
-          {activeFilter === "from_rec" 
-            ? "Showing buses where REC is a pickup point. REC will be automatically selected as your pickup location."
-            : "Showing buses where REC is a drop-off point. REC will be automatically selected as your drop-off location."
+          {userShouldBookReturn 
+            ? "Showing return buses to REC College. You can only book return trips now."
+            : activeFilter === "from_rec" 
+              ? "Showing buses where REC is a pickup point. REC will be automatically selected as your pickup location."
+              : "Showing buses where REC is a drop-off point. REC will be automatically selected as your drop-off location."
           }
         </p>
 
@@ -235,11 +266,16 @@ const Dashboard: React.FC = () => {
         <div>
           <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
             <Bus className="h-5 w-5" />
-            Available Buses
+            {userShouldBookReturn ? "Return Buses Available" : "Available Buses"}
           </h2>
           
           {filteredBuses.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No buses match your search criteria</p>
+            <p className="text-center text-muted-foreground py-8">
+              {userShouldBookReturn 
+                ? "No return buses available at the moment. Please check back later."
+                : "No buses match your search criteria"
+              }
+            </p>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {(() => {
@@ -262,6 +298,7 @@ const Dashboard: React.FC = () => {
                     isBooked={!!(currentBooking && currentBooking.status === 'confirmed' && currentBooking.bus.id === bus.id)}
                     activeFilter={activeFilter}
                     hasConfirmedBooking={!!(currentBooking && currentBooking.status === 'confirmed')}
+                    userShouldBookReturn={userShouldBookReturn}
                   />
                 ));
               })()}

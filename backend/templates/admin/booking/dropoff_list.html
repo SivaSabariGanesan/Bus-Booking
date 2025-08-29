@@ -1,0 +1,214 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" type="text/css" href="{% static 'admin/css/changelists.css' %}">
+  <style>
+    .date-picker {
+      margin: 20px 0;
+      padding: 15px;
+      background: #f8f9fa;
+      border-radius: 5px;
+      border: 1px solid #dee2e6;
+    }
+    .date-picker input[type="date"] {
+      padding: 8px 12px;
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      margin-right: 10px;
+    }
+    .date-picker button {
+      padding: 8px 16px;
+      background: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .date-picker button:hover {
+      background: #0056b3;
+    }
+    .export-btn {
+      float: right;
+      margin-top: -40px;
+    }
+    .export-btn a {
+      padding: 8px 16px;
+      background: #28a745;
+      color: white;
+      text-decoration: none;
+      border-radius: 4px;
+    }
+    .export-btn a:hover {
+      background: #218838;
+    }
+    .stats {
+      margin: 20px 0;
+      padding: 15px;
+      background: #e9ecef;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+    .dropoff-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    .dropoff-table th,
+    .dropoff-table td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #dee2e6;
+    }
+    .dropoff-table th {
+      background: #f8f9fa;
+      font-weight: bold;
+    }
+    .dropoff-table tr:hover {
+      background: #f8f9fa;
+    }
+    .status-badge {
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .status-pending {
+      background: #fff3cd;
+      color: #856404;
+    }
+    .status-confirmed {
+      background: #d4edda;
+      color: #155724;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <div class="module filtered">
+    <h2>{{ title }}</h2>
+    
+    <!-- Date Picker -->
+    <div class="date-picker">
+      <form method="get" action="{% url 'admin:booking_dropoff_list' %}">
+        <label for="date">Select Date:</label>
+        <input type="date" id="date" name="date" value="{{ selected_date }}" required>
+        <button type="submit">View Drop-off List</button>
+      </form>
+      
+      <!-- Export Button -->
+      <div class="export-btn">
+        <a href="{% url 'admin:booking_export_dropoff' %}?date={{ selected_date }}" target="_blank">
+          📥 Export to CSV
+        </a>
+      </div>
+      
+      <!-- Quick Navigation -->
+      <div style="margin-top: 15px; text-align: center;">
+        <div style="display: inline-flex; gap: 10px; background: white; padding: 10px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+          <span style="color: #6c757d; font-size: 14px;">Quick View:</span>
+          <a href="{% url 'admin:booking_pickup_list' %}?date={{ selected_date }}" style="padding: 6px 12px; background: #007bff; color: white; text-decoration: none; border-radius: 4px; font-size: 12px;">
+            👥 Pickup List
+          </a>
+          <a href="{% url 'admin:index' %}" style="padding: 6px 12px; background: #6c757d; color: white; text-decoration: none; border-radius: 4px; font-size: 12px;">
+            🏠 Admin Home
+          </a>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Statistics and Filter Summary -->
+    <div class="stats">
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          📊 Total Drop-offs for {{ selected_date|date:"l, F d, Y" }}: <strong>{{ dropoff_count }} students</strong>
+        </div>
+        <div style="font-size: 14px; color: #6c757d;">
+          🔍 Showing: <strong>Return trips (TO REC)</strong> | Status: <strong>Pending + Confirmed</strong>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Filter Summary -->
+    <div style="background: #e3f2fd; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #2196f3;">
+      <h4 style="margin: 0 0 10px 0; color: #1976d2;">📋 Current Filters Applied:</h4>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 14px;">
+        <div><strong>Date:</strong> {{ selected_date|date:"l, F d, Y" }}</div>
+        <div><strong>Trip Type:</strong> Return (TO REC)</div>
+        <div><strong>Status:</strong> Pending + Confirmed</div>
+        <div><strong>Total Results:</strong> {{ dropoff_count }} bookings</div>
+      </div>
+    </div>
+    
+    {% if dropoffs %}
+      <!-- Drop-off Table -->
+      <table class="dropoff-table">
+        <thead>
+          <tr>
+            <th>Student Name</th>
+            <th>Roll No</th>
+            <th>Department</th>
+            <th>Phone</th>
+            <th>Pickup Location</th>
+            <th>Drop-off Location</th>
+            <th>Departure Time</th>
+            <th>Bus Number</th>
+            <th>Route Name</th>
+            <th>Status</th>
+            <th>Booking Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for dropoff in dropoffs %}
+          <tr>
+            <td><strong>{{ dropoff.student.first_name }} {{ dropoff.student.last_name }}</strong></td>
+            <td>{{ dropoff.student.roll_no }}</td>
+            <td>{{ dropoff.student.dept }}</td>
+            <td>{{ dropoff.student.phone_number }}</td>
+            <td>{{ dropoff.from_location }}</td>
+            <td>{{ dropoff.to_location }}</td>
+            <td>{{ dropoff.departure_time|time:"H:i" }}</td>
+            <td><strong>{{ dropoff.bus.bus_no }}</strong></td>
+            <td>{{ dropoff.bus.route_name }}</td>
+            <td>
+              <span class="status-badge status-{{ dropoff.status }}">
+                {{ dropoff.status|title }}
+              </span>
+            </td>
+            <td>{{ dropoff.booking_date|date:"M d, Y H:i" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <div style="text-align: center; padding: 40px; color: #6c757d; background: #f8f9fa; border-radius: 8px; margin: 20px 0;">
+        <div style="font-size: 48px; margin-bottom: 20px;">📭</div>
+        <h3>No Drop-off Bookings Found</h3>
+        <p style="margin: 15px 0; font-size: 16px;">
+          <strong>Date:</strong> {{ selected_date|date:"l, F d, Y" }}
+        </p>
+        <div style="background: white; padding: 20px; border-radius: 6px; margin: 20px 0; text-align: left; max-width: 500px; margin-left: auto; margin-right: auto;">
+          <h4 style="color: #495057; margin-bottom: 15px;">Possible Reasons:</h4>
+          <ul style="color: #6c757d; line-height: 1.6;">
+            <li>No students have booked return trips for this date</li>
+            <li>All bookings for this date are pickup trips (from REC)</li>
+            <li>Students haven't completed their 24-hour waiting period yet</li>
+            <li>Bookings might be in pending status and not yet confirmed</li>
+            <li>Selected date might be in the past or too far in the future</li>
+          </ul>
+        </div>
+        <div style="margin-top: 20px;">
+          <a href="{% url 'admin:booking_pickup_list' %}?date={{ selected_date }}" style="display: inline-block; padding: 10px 20px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; margin: 0 10px;">
+            🔍 Check Pickup List
+          </a>
+          <a href="{% url 'admin:index' %}" style="display: inline-block; padding: 10px 20px; background: #6c757d; color: white; text-decoration: none; border-radius: 5px; margin: 0 10px;">
+            🏠 Back to Admin
+          </a>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

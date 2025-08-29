@@ -2,8 +2,17 @@ from django import forms
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils import timezone
+from django.utils.safestring import mark_safe
 from datetime import timedelta
 from import_export.admin import ImportExportModelAdmin
+
+from django.http import HttpResponse
+from django.urls import path
+from django.shortcuts import render
+from django.contrib.admin import SimpleListFilter
+from django.utils import timezone
+from datetime import datetime
+import csv
 from .models import Student, Bus, Booking, BookingOTP, Stop, SiteConfiguration
 from .resources import StudentResource, BusResource, BookingResource, BookingOTPResource
 
@@ -42,31 +51,44 @@ class DepartureDateFilter(admin.SimpleListFilter):
         return queryset
 
 
-class StopNameFilter(admin.SimpleListFilter):
-    title = 'Stop Name'
-    parameter_name = 'stop_name_filter'
+class TripTypeFilter(SimpleListFilter):
+    title = 'Trip Type'
+    parameter_name = 'trip_type'
 
     def lookups(self, request, model_admin):
-        # Get unique stop names with their types and locations from the Stop model
-        stops = Stop.objects.filter(is_active=True).values('stop_name', 'location', 'is_pickup', 'is_dropoff').distinct().order_by('stop_name', 'location')
-        lookups = []
-        for stop in stops:
-            stop_types = []
-            if stop['is_pickup']:
-                stop_types.append('Pickup')
-            if stop['is_dropoff']:
-                stop_types.append('Drop-off')
-            type_str = f" ({', '.join(stop_types)})" if stop_types else ""
-            # Format: "stop_name - location (Pickup/Drop-off)"
-            display_name = f"{stop['stop_name']} - {stop['location']}{type_str}"
-            # Use stop_name as the value for filtering
-            lookups.append((stop['stop_name'], display_name))
-        return lookups
+        return (
+            ('outbound', 'Outbound (FROM REC)'),
+            ('return', 'Return (TO REC)'),
+        )
+
+    def queryset(self, request, queryset):
+        if self.value() == 'outbound':
+            return queryset.filter(is_outbound_trip=True)
+        if self.value() == 'return':
+            return queryset.filter(is_outbound_trip=False)
+        return queryset
+
+
+class DateFilter(SimpleListFilter):
+    title = 'Trip Date'
+    parameter_name = 'trip_date'
+
+    def lookups(self, request, model_admin):
+        # Get unique trip dates from bookings
+        dates = Booking.objects.dates('trip_date', 'day')
+        return [(date.strftime('%Y-%m-%d'), date.strftime('%B %d, %Y')) for date in dates]
 
     def queryset(self, request, queryset):
         if self.value():
-            return queryset.filter(selected_stop__stop_name=self.value())
+            try:
+                date = datetime.strptime(self.value(), '%Y-%m-%d').date()
+                return queryset.filter(trip_date=date)
+            except ValueError:
+                pass
         return queryset
+
+
+
 
 
 class BusAdminForm(forms.ModelForm):
@@ -129,40 +151,300 @@ class BookingOTPInline(admin.TabularInline):
 
 
 @admin.register(Booking)
-class BookingAdmin(ImportExportModelAdmin, admin.ModelAdmin):
-    resource_class = BookingResource
-    list_display = ('student', 'bus', 'booking_date', 'trip_date', 'departure_time', 'from_location', 'to_location', 'selected_stop_display', 'status', 'otp_code')
-    # Django admin list_filter does not support traversing to a specific field on a related
-    # model using double-underscore syntax. Using 'bus__route_name' raises a FieldError in
-    # production (500 on the changelist). Filter by the related object instead.
-    list_filter = (StopNameFilter, 'bus', 'trip_date', 'departure_time', 'booking_date', 'status', 'selected_stop', 'selected_stop__is_pickup', 'selected_stop__is_dropoff')
-    search_fields = ('student__email', 'student__first_name', 'student__last_name', 'bus__bus_no', 'from_location', 'to_location', 'selected_stop__stop_name', 'selected_stop__location')
-    ordering = ('-booking_date',)
-    readonly_fields = ('booking_date', 'otp_code')
-    inlines = [BookingOTPInline]
+class BookingAdmin(admin.ModelAdmin):
+    list_display = [
+        'student_name', 'bus_info', 'trip_type', 'trip_date', 
+        'departure_time', 'from_location', 'to_location', 
+        'status', 'booking_date', 'return_trip_available', 'swift_button'
+    ]
+    list_filter = [
+        TripTypeFilter, DateFilter, 'status', 'trip_date', 
+        'is_outbound_trip', 'booking_date'
+    ]
+    actions = ['auto_cancel_completed_outbound']
+    search_fields = ['student__first_name', 'student__last_name', 'student__roll_no', 'bus__bus_no']
+    readonly_fields = ['return_trip_available']
+    date_hierarchy = 'trip_date'
     
-    fieldsets = (
-        ('Basic Info', {'fields': ('student', 'bus')}),
-        ('Trip Details', {'fields': ('trip_date', 'departure_time', 'from_location', 'to_location', 'selected_stop')}),
-        ('System Info', {'fields': ('booking_date', 'status')}),
-    )
+    def student_name(self, obj):
+        return f"{obj.student.first_name} {obj.student.last_name}"
+    student_name.short_description = 'Student Name'
     
-    def get_readonly_fields(self, request, obj=None):
-        if obj:
-            return ('booking_date',)
-        return ()
+    def bus_info(self, obj):
+        return f"{obj.bus.bus_no} - {obj.bus.route_name}"
+    bus_info.short_description = 'Bus Info'
+    
+    def trip_type(self, obj):
+        return "Outbound (FROM REC)" if obj.is_outbound_trip else "Return (TO REC)"
+    trip_type.short_description = 'Trip Type'
+    
+    def return_trip_available(self, obj):
+        if obj.is_outbound_trip and obj.return_trip_available_after:
+            if timezone.now() >= obj.return_trip_available_after:
+                if obj.status == 'cancelled':
+                    return "✅ Available (Outbound Cancelled)"
+                else:
+                    return "✅ Available"
+            else:
+                time_remaining = obj.return_trip_available_after - timezone.now()
+                hours = int(time_remaining.total_seconds() // 3600)
+                minutes = int((time_remaining.total_seconds() % 3600) // 60)
+                return f"⏳ {hours}h {minutes}m remaining"
+        return "N/A"
+    return_trip_available.short_description = 'Return Trip Status'
+    
+    def swift_button(self, obj):
+        """Swift button to override 24-hour constraint immediately"""
+        if not obj.is_outbound_trip:
+            return "N/A (Return trip)"
+        
+        if not obj.return_trip_available_after:
+            return "No restriction"
+        
+        now = timezone.now()
+        if now >= obj.return_trip_available_after:
+            # Auto-cancel outbound booking when 24 hours complete
+            if obj.status != 'cancelled':
+                obj.status = 'cancelled'
+                obj.save()
+            return "✅ Available (Outbound Cancelled)"
+        else:
+            html = f"""
+            <a href="/admin/booking/booking/{obj.id}/swift-override/" 
+               style="background: #28a745; color: white; padding: 6px 12px; 
+                      text-decoration: none; border-radius: 4px; font-size: 12px; 
+                      font-weight: bold; display: inline-block;">
+               🚀 Swift
+            </a>
+            """
+            return mark_safe(html)
+    
+    swift_button.short_description = 'Swift Override'
+    
+    def auto_cancel_completed_outbound(self, request, queryset):
+        """Admin action to auto-cancel outbound bookings where 24-hour period is complete"""
+        count = 0
+        now = timezone.now()
+        
+        for booking in queryset:
+            if (booking.is_outbound_trip and 
+                booking.status in ['pending', 'confirmed'] and
+                booking.return_trip_available_after and
+                now >= booking.return_trip_available_after):
+                
+                # Cancel the outbound booking
+                booking.status = 'cancelled'
+                booking.save()
+                count += 1
+        
+        if count > 0:
+            self.message_user(
+                request, 
+                f"✅ {count} outbound booking(s) automatically cancelled (24-hour period completed)",
+                level='SUCCESS'
+            )
+        else:
+            self.message_user(
+                request, 
+                "ℹ️ No outbound bookings found that have completed their 24-hour period",
+                level='INFO'
+            )
+    
+    auto_cancel_completed_outbound.short_description = "🔄 Auto-cancel completed outbound bookings"
 
-    def selected_stop_display(self, obj):
-        if obj.selected_stop:
-            return f"{obj.selected_stop.stop_name} ({obj.selected_stop.location})"
-        return '-'
-    selected_stop_display.short_description = 'Selected Stop'
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('pickup-list/', self.admin_site.admin_view(self.pickup_list_view), name='booking_pickup_list'),
+            path('dropoff-list/', self.admin_site.admin_view(self.dropoff_list_view), name='booking_dropoff_list'),
+            path('export-pickup/', self.admin_site.admin_view(self.export_pickup_view), name='booking_export_pickup'),
+            path('export-dropoff/', self.admin_site.admin_view(self.export_dropoff_view), name='booking_export_dropoff'),
+            path('<int:booking_id>/swift-override/', self.admin_site.admin_view(self.swift_override_view), name='booking_swift_override'),
+        ]
+        return custom_urls + urls
 
-    def otp_code(self, obj):
-        if hasattr(obj, 'otp') and obj.otp:
-            return obj.otp.otp_code
-        return '-'
-    otp_code.short_description = 'OTP Code'
+    def pickup_list_view(self, request):
+        """Admin view for pickup list with date filtering"""
+        selected_date = request.GET.get('date', timezone.now().date().strftime('%Y-%m-%d'))
+        
+        try:
+            target_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
+        except ValueError:
+            target_date = timezone.now().date()
+        
+        # Get all outbound bookings (FROM REC) for the selected date
+        pickups = Booking.objects.filter(
+            trip_date=target_date,
+            is_outbound_trip=True,
+            status__in=['pending', 'confirmed']
+        ).select_related('student', 'bus').order_by('departure_time')
+        
+        context = {
+            'title': f'Pickup List for {target_date.strftime("%B %d, %Y")}',
+            'pickups': pickups,
+            'selected_date': selected_date,
+            'pickup_count': pickups.count(),
+            'opts': self.model._meta,
+        }
+        
+        return render(request, 'admin/booking/pickup_list.html', context)
+
+    def dropoff_list_view(self, request):
+        """Admin view for drop-off list with date filtering"""
+        selected_date = request.GET.get('date', timezone.now().date().strftime('%Y-%m-%d'))
+        
+        try:
+            target_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
+        except ValueError:
+            target_date = timezone.now().date()
+        
+        # Get all return bookings (TO REC) for the selected date
+        dropoffs = Booking.objects.filter(
+            trip_date=target_date,
+            is_outbound_trip=False,
+            status__in=['pending', 'confirmed']
+        ).select_related('student', 'bus').order_by('departure_time')
+        
+        context = {
+            'title': f'Drop-off List for {target_date.strftime("%B %d, %Y")}',
+            'dropoffs': dropoffs,
+            'selected_date': selected_date,
+            'dropoff_count': dropoffs.count(),
+            'opts': self.model._meta,
+        }
+        
+        return render(request, 'admin/booking/dropoff_list.html', context)
+
+    def export_pickup_view(self, request):
+        """Export pickup list to CSV"""
+        selected_date = request.GET.get('date', timezone.now().date().strftime('%Y-%m-%d'))
+        
+        try:
+            target_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
+        except ValueError:
+            target_date = timezone.now().date()
+        
+        # Get all outbound bookings (FROM REC) for the selected date
+        pickups = Booking.objects.filter(
+            trip_date=target_date,
+            is_outbound_trip=True,
+            status__in=['pending', 'confirmed']
+        ).select_related('student', 'bus').order_by('departure_time')
+        
+        # Create CSV response
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="pickup_list_{target_date}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow([
+            'Student Name', 'Roll No', 'Department', 'Phone', 
+            'Pickup Location', 'Destination', 'Departure Time', 
+            'Bus Number', 'Route Name', 'Status', 'Booking Date'
+        ])
+        
+        for pickup in pickups:
+            writer.writerow([
+                f"{pickup.student.first_name} {pickup.student.last_name}",
+                pickup.student.roll_no,
+                pickup.student.dept,
+                pickup.student.phone_number,
+                pickup.from_location,
+                pickup.to_location,
+                pickup.departure_time.strftime('%H:%M'),
+                pickup.bus.bus_no,
+                pickup.bus.route_name,
+                pickup.status,
+                pickup.booking_date.strftime('%Y-%m-%d %H:%M')
+            ])
+        
+        return response
+
+    def export_dropoff_view(self, request):
+        """Export drop-off list to CSV"""
+        selected_date = request.GET.get('date', timezone.now().date().strftime('%Y-%m-%d'))
+        
+        try:
+            target_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
+        except ValueError:
+            target_date = timezone.now().date()
+        
+        # Get all return bookings (TO REC) for the selected date
+        dropoffs = Booking.objects.filter(
+            trip_date=target_date,
+            is_outbound_trip=False,
+            status__in=['pending', 'confirmed']
+        ).select_related('student', 'bus').order_by('departure_time')
+        
+        # Create CSV response
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="dropoff_list_{target_date}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow([
+            'Student Name', 'Roll No', 'Department', 'Phone', 
+            'Pickup Location', 'Drop-off Location', 'Departure Time', 
+            'Bus Number', 'Route Name', 'Status', 'Booking Date'
+        ])
+        
+        for dropoff in dropoffs:
+            writer.writerow([
+                f"{dropoff.student.first_name} {dropoff.student.last_name}",
+                dropoff.student.roll_no,
+                dropoff.student.dept,
+                dropoff.student.phone_number,
+                dropoff.from_location,
+                dropoff.to_location,
+                dropoff.departure_time.strftime('%H:%M'),
+                dropoff.bus.bus_no,
+                dropoff.bus.route_name,
+                dropoff.status,
+                dropoff.booking_date.strftime('%Y-%m-%d %H:%M')
+            ])
+        
+        return response
+
+    def swift_override_view(self, request, booking_id):
+        """Swift override view to immediately remove 24-hour constraint"""
+        try:
+            booking = Booking.objects.get(id=booking_id)
+            
+            if not booking.is_outbound_trip:
+                return HttpResponse(
+                    "❌ This is not an outbound trip. Only outbound trips can use Swift override.",
+                    content_type="text/html; charset=utf-8"
+                )
+            
+            if not booking.return_trip_available_after:
+                return HttpResponse(
+                    "❌ No 24-hour constraint found for this booking.",
+                    content_type="text/html; charset=utf-8"
+                )
+            
+            # Swift override - remove 24-hour constraint immediately
+            booking.return_trip_available_after = timezone.now()
+            booking.save()
+            
+            # Auto-cancel the outbound booking so student can book return trip
+            booking.status = 'cancelled'
+            booking.save()
+            
+            # Redirect back to admin with success message
+            from django.contrib import messages
+            messages.success(request, f"🚀 Swift override applied! {booking.student.first_name} {booking.student.last_name}'s outbound booking cancelled. Student can now book return trip immediately!")
+            
+            from django.shortcuts import redirect
+            return redirect('admin:booking_booking_changelist')
+            
+        except Booking.DoesNotExist:
+            return HttpResponse(
+                "❌ Booking not found.",
+                content_type="text/html; charset=utf-8"
+            )
+        except Exception as e:
+            return HttpResponse(
+                f"❌ Error: {str(e)}",
+                content_type="text/html; charset=utf-8"
+            )
 
 
 @admin.register(BookingOTP)

@@ -16,9 +16,10 @@ interface BusCardProps {
   isBooked: boolean
   activeFilter?: "from_rec" | "to_rec"
   hasConfirmedBooking?: boolean
+  userShouldBookReturn?: boolean
 }
 
-const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activeFilter, hasConfirmedBooking }) => {
+const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activeFilter, hasConfirmedBooking, userShouldBookReturn }) => {
   const [selectedStopId, setSelectedStopId] = useState<number | null>(null)
   const [showStopSelection, setShowStopSelection] = useState(false)
 
@@ -71,12 +72,18 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activ
     if (bus.is_full) return "Full"
     if (!bus.is_booking_open) return "Closed"
     if (hasConfirmedBooking) return "Unavailable"
+    if (userShouldBookReturn && bus.display_direction && !bus.display_direction.includes('→ REC College')) {
+      return "Not Available"
+    }
     return "Book Now"
   }
 
   const getButtonVariant = () => {
     if (isBooked) return "outline"
     if (bus.is_full || !bus.is_booking_open) return "secondary"
+    if (userShouldBookReturn && bus.display_direction && !bus.display_direction.includes('→ REC College')) {
+      return "secondary"
+    }
     return "default"
   }
 
@@ -108,16 +115,17 @@ const BusCard: React.FC<BusCardProps> = ({ bus, onBook, loading, isBooked, activ
         {/* Route Info */}
         <div className="flex items-center gap-2 text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg">
           <MapPin className="h-4 w-4 text-purple-500" />
-          <span className="font-medium">{bus.from_location}</span>
-          <span className="text-purple-400">→</span>
-          <span className="font-medium">{bus.to_location}</span>
+          <span className="font-medium">
+            {bus.display_direction || `${bus.from_location} → ${bus.to_location}`}
+          </span>
         </div>
 
         {/* Stop Selection or Booking Button */}
         {!showStopSelection ? (
           <Button 
             onClick={handleBookClick} 
-            disabled={loading || bus.is_full || isBooked || !bus.is_booking_open || hasConfirmedBooking} 
+            disabled={loading || bus.is_full || isBooked || !bus.is_booking_open || hasConfirmedBooking || 
+                     (!!userShouldBookReturn && !!bus.display_direction && !bus.display_direction.includes('→ REC College'))} 
             variant={getButtonVariant()}
             className="w-full h-10 font-medium" 
             size="sm"

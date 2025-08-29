@@ -34,6 +34,7 @@ export interface Bus {
   is_full: boolean;
   stops: Stop[];
   is_booking_open: boolean;
+  display_direction?: string;
 }
 
 export interface Booking {

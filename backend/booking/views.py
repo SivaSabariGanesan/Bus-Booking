@@ -15,6 +15,8 @@ from datetime import timedelta
 from django.core.mail import send_mail
 from django.conf import settings
 from django.core.exceptions import MultipleObjectsReturned
+from django.http import HttpResponse
+import csv
 
 
 @csrf_exempt
@@ -54,7 +56,8 @@ class BusListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        """Filter buses by departure date if specified"""
+        """Filter buses based on student's booking status and 24-hour restriction"""
+        user = self.request.user
         queryset = Bus.objects.all()
         
         # Filter by departure date if provided
@@ -68,12 +71,27 @@ class BusListView(generics.ListAPIView):
                 # If date format is invalid, return all buses
                 pass
         
-        # Filter by from_location if provided
+        # Apply 24-hour restriction logic
+        # Use the same buses for both directions - system determines direction based on student status
+        if user.should_book_return_trip():
+            # Student should book return trip - show all buses but display as TO REC
+            # The frontend will display these as "Destination → REC College" for return trips
+            queryset = queryset.all()
+        elif user.has_outbound_booking():
+            # Student has active outbound booking but not ready for return yet
+            # Show all buses but display as FROM REC
+            # The frontend will display these as "REC College → Destination" for outbound trips
+            queryset = queryset.all()
+        else:
+            # Student has no outbound booking - show all buses as FROM REC
+            # The frontend will display these as "REC College → Destination" for outbound trips
+            queryset = queryset.all()
+        
+        # Additional filters
         from_location = self.request.query_params.get('from_location', None)
         if from_location:
             queryset = queryset.filter(from_location__icontains=from_location)
         
-        # Filter by to_location if provided
         to_location = self.request.query_params.get('to_location', None)
         if to_location:
             queryset = queryset.filter(to_location__icontains=to_location)
@@ -151,9 +169,18 @@ class BookingCreateView(generics.CreateAPIView):
                     'errors': {'non_field_errors': ['Booking for this bus is currently closed.']}
                 }, status=status.HTTP_403_FORBIDDEN)
             print(f"Found bus: {bus.bus_no}")  # Debug log
-            # Always use bus.from_location and bus.to_location
-            from_location = bus.from_location
-            to_location = bus.to_location
+            # Determine locations based on trip type
+            is_outbound_trip = serializer.validated_data.get('is_outbound_trip', True)
+            
+            if is_outbound_trip:
+                # For FROM REC trips, use bus locations as is
+                from_location = bus.from_location
+                to_location = bus.to_location
+            else:
+                # For TO REC trips, reverse the locations to show "Destination → REC College"
+                from_location = bus.to_location  # Destination becomes pickup
+                to_location = bus.from_location  # REC becomes dropoff
+            
             # Get selected stop
             selected_stop_id = serializer.validated_data.get('selected_stop_id')
             selected_stop = None
@@ -162,7 +189,21 @@ class BookingCreateView(generics.CreateAPIView):
                     selected_stop = bus.stops.get(id=selected_stop_id)
                 except Exception as e:
                     print(f"Error finding selected stop: {e}")
-            # Create booking as pending
+            
+            # Set 24-hour restriction fields
+            outbound_booking_date = None
+            return_trip_available_after = None
+            
+            if is_outbound_trip:
+                outbound_booking_date = timezone.now()
+                return_trip_available_after = timezone.now() + timedelta(hours=24)
+            
+            print(f"Creating {'outbound' if is_outbound_trip else 'return'} booking:")
+            print(f"  - From: {from_location}")
+            print(f"  - To: {to_location}")
+            print(f"  - Bus: {bus.bus_no}")
+            print(f"  - Trip Type: {'FROM REC' if is_outbound_trip else 'TO REC'}")
+            
             booking = Booking.objects.create(
                 student=request.user,
                 bus=bus,
@@ -172,6 +213,9 @@ class BookingCreateView(generics.CreateAPIView):
                 to_location=to_location,
                 selected_stop=selected_stop,
                 status='pending',
+                is_outbound_trip=is_outbound_trip,
+                outbound_booking_date=outbound_booking_date,
+                return_trip_available_after=return_trip_available_after,
             )
             # Generate OTP
             otp_code = str(random.randint(100000, 999999))
@@ -312,3 +356,277 @@ def resend_otp(request):
             'success': False, 
             'error': 'Failed to resend OTP. Please try again later.'
         }, status=500)
+
+
+# Admin Views for Pickup and Drop-off Management
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_pickup_list(request):
+    """Get list of all pickup bookings for a specific date"""
+    try:
+        # Check if user is admin/staff
+        if not request.user.is_staff:
+            return Response({
+                'success': False,
+                'error': 'Admin access required'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        date = request.GET.get('date')
+        if not date:
+            return Response({
+                'success': False,
+                'error': 'Date parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            from datetime import datetime
+            target_date = datetime.strptime(date, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({
+                'success': False,
+                'error': 'Invalid date format. Use YYYY-MM-DD'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get all outbound bookings (FROM REC) for the specified date
+        pickups = Booking.objects.filter(
+            trip_date=target_date,
+            is_outbound_trip=True,
+            status__in=['pending', 'confirmed']
+        ).select_related('student', 'bus').order_by('departure_time')
+        
+        pickup_data = []
+        for pickup in pickups:
+            pickup_data.append({
+                'id': pickup.id,
+                'student_name': pickup.student.full_name,
+                'student_roll_no': pickup.student.roll_no,
+                'student_dept': pickup.student.dept,
+                'student_phone': pickup.student.phone_number,
+                'pickup_location': pickup.from_location,
+                'destination': pickup.to_location,
+                'departure_time': pickup.departure_time.strftime('%H:%M'),
+                'bus_number': pickup.bus.bus_no,
+                'route_name': pickup.bus.route_name,
+                'status': pickup.status,
+                'booking_date': pickup.booking_date.strftime('%Y-%m-%d %H:%M')
+            })
+        
+        return Response({
+            'success': True,
+            'date': date,
+            'pickup_count': len(pickup_data),
+            'pickups': pickup_data
+        })
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': f'Error fetching pickup list: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_dropoff_list(request):
+    """Get list of all drop-off bookings for a specific date"""
+    try:
+        # Check if user is admin/staff
+        if not request.user.is_staff:
+            return Response({
+                'success': False,
+                'error': 'Admin access required'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        date = request.GET.get('date')
+        if not date:
+            return Response({
+                'success': False,
+                'error': 'Date parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            from datetime import datetime
+            target_date = datetime.strptime(date, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({
+                'success': False,
+                'error': 'Invalid date format. Use YYYY-MM-DD'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get all return bookings (TO REC) for the specified date
+        dropoffs = Booking.objects.filter(
+            trip_date=target_date,
+            is_outbound_trip=False,
+            status__in=['pending', 'confirmed']
+        ).select_related('student', 'bus').order_by('departure_time')
+        
+        dropoff_data = []
+        for dropoff in dropoffs:
+            dropoff_data.append({
+                'id': dropoff.id,
+                'student_name': dropoff.student.full_name,
+                'student_roll_no': dropoff.student.roll_no,
+                'student_dept': dropoff.student.dept,
+                'student_phone': dropoff.student.phone_number,
+                'pickup_location': dropoff.from_location,
+                'dropoff_location': dropoff.to_location,
+                'departure_time': dropoff.departure_time.strftime('%H:%M'),
+                'bus_number': dropoff.bus.bus_no,
+                'route_name': dropoff.bus.route_name,
+                'status': dropoff.status,
+                'booking_date': dropoff.booking_date.strftime('%Y-%m-%d %H:%M')
+            })
+        
+        return Response({
+            'success': True,
+            'date': date,
+            'dropoff_count': len(dropoff_data),
+            'dropoffs': dropoff_data
+        })
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': f'Error fetching drop-off list: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_export_pickup_list(request):
+    """Export pickup list to CSV for a specific date"""
+    try:
+        # Check if user is admin/staff
+        if not request.user.is_staff:
+            return Response({
+                'success': False,
+                'error': 'Admin access required'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        date = request.GET.get('date')
+        if not date:
+            return Response({
+                'success': False,
+                'error': 'Date parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            from datetime import datetime
+            target_date = datetime.strptime(date, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({
+                'success': False,
+                'error': 'Invalid date format. Use YYYY-MM-DD'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get all outbound bookings (FROM REC) for the specified date
+        pickups = Booking.objects.filter(
+            trip_date=target_date,
+            is_outbound_trip=True,
+            status__in=['pending', 'confirmed']
+        ).select_related('student', 'bus').order_by('departure_time')
+        
+        # Create CSV response
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="pickup_list_{date}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow([
+            'Student Name', 'Roll No', 'Department', 'Phone', 
+            'Pickup Location', 'Destination', 'Departure Time', 
+            'Bus Number', 'Route Name', 'Status', 'Booking Date'
+        ])
+        
+        for pickup in pickups:
+            writer.writerow([
+                pickup.student.full_name,
+                pickup.student.roll_no,
+                pickup.student.dept,
+                pickup.student.phone_number,
+                pickup.from_location,
+                pickup.to_location,
+                pickup.departure_time.strftime('%H:%M'),
+                pickup.bus.bus_no,
+                pickup.bus.route_name,
+                pickup.status,
+                pickup.booking_date.strftime('%Y-%m-%d %H:%M')
+            ])
+        
+        return response
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': f'Error exporting pickup list: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def admin_export_dropoff_list(request):
+    """Export drop-off list to CSV for a specific date"""
+    try:
+        # Check if user is admin/staff
+        if not request.user.is_staff:
+            return Response({
+                'success': False,
+                'error': 'Admin access required'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        date = request.GET.get('date')
+        if not date:
+            return Response({
+                'success': False,
+                'error': 'Date parameter is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            from datetime import datetime
+            target_date = datetime.strptime(date, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({
+                'success': False,
+                'error': 'Invalid date format. Use YYYY-MM-DD'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get all return bookings (TO REC) for the specified date
+        dropoffs = Booking.objects.filter(
+            trip_date=target_date,
+            is_outbound_trip=False,
+            status__in=['pending', 'confirmed']
+        ).select_related('student', 'bus').order_by('departure_time')
+        
+        # Create CSV response
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="dropoff_list_{date}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow([
+            'Student Name', 'Roll No', 'Department', 'Phone', 
+            'Pickup Location', 'Drop-off Location', 'Departure Time', 
+            'Bus Number', 'Route Name', 'Status', 'Booking Date'
+        ])
+        
+        for dropoff in dropoffs:
+            writer.writerow([
+                dropoff.student.full_name,
+                dropoff.student.roll_no,
+                dropoff.student.dept,
+                dropoff.student.phone_number,
+                dropoff.from_location,
+                dropoff.to_location,
+                dropoff.departure_time.strftime('%H:%M'),
+                dropoff.bus.bus_no,
+                dropoff.bus.route_name,
+                dropoff.status,
+                dropoff.booking_date.strftime('%Y-%m-%d %H:%M')
+            ])
+        
+        return response
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': f'Error exporting drop-off list: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

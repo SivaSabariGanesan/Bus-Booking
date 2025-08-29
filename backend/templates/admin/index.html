@@ -1,0 +1,46 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+
+{% block sidebar %}
+{{ block.super }}
+<div class="module">
+  <h2>🚌 Transportation Management</h2>
+  <div style="padding: 10px;">
+    <h3>📋 Daily Lists</h3>
+    <ul style="list-style: none; padding: 0;">
+      <li style="margin: 8px 0;">
+        <a href="{% url 'admin:booking_pickup_list' %}" style="text-decoration: none; color: #447e9b; font-weight: bold;">
+          👥 Pickup List
+        </a>
+        <br>
+        <small style="color: #666;">View students to be picked up by date</small>
+      </li>
+      <li style="margin: 8px 0;">
+        <a href="{% url 'admin:booking_dropoff_list' %}" style="text-decoration: none; color: #447e9b; font-weight: bold;">
+          📍 Drop-off List
+        </a>
+        <br>
+        <small style="color: #666;">View students to be dropped off by date</small>
+      </li>
+    </ul>
+    
+    <h3>📊 Quick Stats</h3>
+    <div style="background: #f8f9fa; padding: 10px; border-radius: 4px; margin: 10px 0;">
+      <strong>Today's Date:</strong> {{ "now"|date:"l, F d, Y" }}<br>
+      <small>Check pickup and drop-off lists for today or any specific date</small>
+    </div>
+    
+    <div style="background: #fff3cd; padding: 10px; border-radius: 4px; margin: 10px 0; border-left: 4px solid #ffc107;">
+      <strong>💡 Pro Tip:</strong><br>
+      <small>Use the date picker to view bookings for any specific date. The system automatically separates pickup (FROM REC) and drop-off (TO REC) trips.</small>
+    </div>
+    
+    <h3>💡 Tips</h3>
+    <ul style="font-size: 12px; color: #666; padding-left: 15px;">
+      <li>Use date picker to view specific dates</li>
+      <li>Export lists to CSV for record keeping</li>
+      <li>Filter bookings by trip type and status</li>
+    </ul>
+  </div>
+</div>
+{% endblock %}

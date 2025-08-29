@@ -5,6 +5,7 @@ import LoginPage from './components/LoginPage';
 import Dashboard from './components/Dashboard';
 import Profile from './components/Profile';
 import MyBooking from './components/MyBooking';
+
 import Navbar from './components/Navbar';
 import { Toaster } from 'sonner';
 
@@ -62,6 +63,7 @@ const AppRoutes: React.FC = () => {
           </ProtectedRoute>
         } 
       />
+
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

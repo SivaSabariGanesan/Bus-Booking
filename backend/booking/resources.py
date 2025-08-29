@@ -8,18 +8,18 @@ class StudentResource(resources.ModelResource):
         model = Student
         import_id_fields = ('email',)
         fields = (
-            'id', 'email', 'first_name', 'last_name', 'phone_number', 
-            'year', 'roll_no', 'dept', 'gender', 'is_active', 'is_staff', 'is_superuser'
+            'first_name', 'last_name', 'email', 'phone_number', 
+            'year', 'roll_no', 'dept', 'gender'
         )
         export_order = fields
         skip_unchanged = True
         report_skipped = True
         
     def before_import_row(self, row, **kwargs):
-        """Handle password hashing for new users"""
-        if 'password' in row and row['password']:
-            from django.contrib.auth.hashers import make_password
-            row['password'] = make_password(row['password'])
+        """Set default password for all imported students"""
+        from django.contrib.auth.hashers import make_password
+        # Set default password for all imported students
+        row['password'] = make_password('Changeme@123')
         return row
 
 

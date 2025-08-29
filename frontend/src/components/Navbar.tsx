@@ -32,7 +32,7 @@ interface NavbarProps {
 const Navbar: React.FC<NavbarProps> = ({ className }) => {
   const [active, setActive] = useState<string | null>(null)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const { user } = useAuth()
+  useAuth()
 
   const handleLogout = async () => {
     try {
@@ -85,6 +85,12 @@ const Navbar: React.FC<NavbarProps> = ({ className }) => {
                         {/* Student menu */}
                         <HoveredLink href="/profile">Profile</HoveredLink>
                         <HoveredLink href="/my-booking">My Booking</HoveredLink>
+                        <button
+                          onClick={handleLogout}
+                          className="text-left text-gray-700 hover:text-red-600 transition-colors duration-200"
+                        >
+                          Logout
+                        </button>
                       </div>
                     </div>
                   </div>

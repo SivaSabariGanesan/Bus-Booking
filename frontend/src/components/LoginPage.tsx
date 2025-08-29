@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { LogIn, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { toast } from 'sonner';
+import LoadingScreen from './LoadingScreen';
 import logo from '../../reclogo.webp';
 
 const LoginPage: React.FC = () => {
@@ -9,28 +11,60 @@ const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [showPostLoginAnimation, setShowPostLoginAnimation] = useState(false);
   const navigate = useNavigate();
   const { login } = useAuth();
+
+
+  const resendOtpByEmail = async (emailToResend: string) => {
+    const API_BASE = import.meta.env.VITE_API_BASE as string;
+    await fetch(`${API_BASE}/api/users/resend-otp-by-email/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: emailToResend })
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setError('');
 
     try {
       await login(email, password);
-      navigate('/');
+      setShowPostLoginAnimation(true);
     } catch (err: any) {
       const message = err?.message || 'Invalid email or password';
-      setError(message);
+      if (message.toLowerCase().includes('verify')) {
+        try {
+          await resendOtpByEmail(email);
+          toast.success('Verification OTP sent to your email. Please check your inbox.');
+        } catch (e: any) {
+          // ignore
+        }
+      }
+      toast.error(message);
       setLoading(false);
+    }
+  };
+
+  const handleAnimationComplete = () => {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    if (user.role === 'admin') {
+      navigate('/kisok-ac-back-office');
+    } else if (user.role === 'shopAdmin') {
+      navigate('/kisok-sp-back-office');
+    } else {
+      navigate('/');
     }
   };
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
   };
+
+  if (showPostLoginAnimation) {
+    return <LoadingScreen onComplete={handleAnimationComplete} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-purple-50 flex items-center justify-center px-4">
@@ -39,56 +73,51 @@ const LoginPage: React.FC = () => {
         <div className="bg-white rounded-2xl shadow-xl p-8 border border-purple-100">
           <div className="text-center mb-8">
             <div className="flex justify-center mb-6">
-              <img src={logo} alt="REC Logo" className="h-16 w-16 object-contain" />
+              <img 
+                src={logo}
+                alt="REC College Logo" 
+                className="h-20 w-auto object-contain"
+              />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">College Transport</h1>
-            <p className="text-gray-600 mt-2">Sign in to book your bus</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-                {error}
-              </div>
-            )}
-
             <div className="space-y-2">
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                <Mail size={16} className="inline mr-2" />
                 Email Address
               </label>
-              <div className="relative">
-                <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-purple-100 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors bg-purple-50 text-black placeholder-gray-500"
-                  placeholder="Enter your email"
-                  required
-                />
-              </div>
+              <input
+                type="email"
+                id="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors bg-white text-black placeholder-gray-400"
+                placeholder="Enter your email"
+                style={{ color: 'black' }}
+                required
+              />
             </div>
 
             <div className="space-y-2">
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                <Lock size={16} className="inline mr-2" />
                 Password
               </label>
               <div className="relative">
-                <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   id="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-12 py-3 border border-purple-100 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors bg-purple-50 placeholder-gray-500"
+                  className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
                   placeholder="Enter your password"
                   required
                 />
                 <button
                   type="button"
                   onClick={togglePasswordVisibility}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-purple-600 transition-colors"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-purple-600 transition-colors"
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -113,9 +142,13 @@ const LoginPage: React.FC = () => {
               )}
             </button>
 
-            <div className="flex items-center justify-between text-sm mt-2">
-              <a className="text-purple-600 hover:underline" href="#">Forgot your password?</a>
-              <a className="text-purple-600 hover:underline" href="#">Register here</a>
+            <div className="text-center space-y-4">
+              <Link 
+                to="/forgot-password" 
+                className="text-purple-600 hover:text-purple-700 transition-colors block"
+              >
+                Forgot your password?
+              </Link>
             </div>
           </form>
         </div>

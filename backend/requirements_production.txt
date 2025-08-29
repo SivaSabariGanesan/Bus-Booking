@@ -16,6 +16,9 @@ django-unfold==0.18.0
 # Import/Export functionality
 django-import-export==3.3.4
 
+# MultiSelect field used in historical migrations
+django-multiselectfield==0.1.12
+
 # Production server
 gunicorn==21.2.0
 

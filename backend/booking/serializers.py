@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
-from .models import Student, Bus, Booking, Stop
+from .models import Student, Bus, Booking, Stop, SiteConfiguration
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -104,6 +104,13 @@ class LoginSerializer(serializers.Serializer):
             user = authenticate(email=email, password=password)
             if user:
                 if user.is_active:
+                    # Check allowed years from SiteConfiguration
+                    config = SiteConfiguration.get_solo()
+                    allowed_years = config.allowed_years if config else ['2', '3', '4']
+                    # Accept both string and int for year comparison
+                    allowed_years_str = set(str(y) for y in allowed_years)
+                    if str(user.year) not in allowed_years_str:
+                        raise serializers.ValidationError("Login is not allowed for your year.")
                     data['user'] = user
                     return data
                 else:

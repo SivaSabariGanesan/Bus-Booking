@@ -42,7 +42,11 @@ const LoginPage: React.FC = () => {
           // ignore
         }
       }
-      toast.error(message);
+      if (message.toLowerCase().includes('login is not allowed for your year')) {
+        toast.error('Login is not allowed for your year (e.g., 1st year students are currently not permitted to log in). Please contact administration if you believe this is a mistake.');
+      } else {
+        toast.error(message);
+      }
       setLoading(false);
     }
   };

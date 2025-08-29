@@ -4,7 +4,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.utils import timezone
 from datetime import timedelta
 from import_export.admin import ImportExportModelAdmin
-from .models import Student, Bus, Booking, BookingOTP, Stop
+from .models import Student, Bus, Booking, BookingOTP, Stop, SiteConfiguration
 from .resources import StudentResource, BusResource, BookingResource, BookingOTPResource
 
 
@@ -285,6 +285,28 @@ class StopAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     )
 
 
+@admin.register(SiteConfiguration)
+class SiteConfigurationAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request):
+        # Prevent adding more than one instance
+        return not SiteConfiguration.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        # Prevent deletion
+        return False
+    def get_model_perms(self, request):
+        perms = super().get_model_perms(request)
+        # Rename in sidebar
+        perms['change'] = True
+        return perms
+    def get_queryset(self, request):
+        return super().get_queryset(request)
+    def get_admin_name(self):
+        return 'Configuration'
+    get_admin_name.short_description = 'Configuration'
+    get_admin_name.admin_order_field = 'Configuration'
+
+
 # Customize admin site
 admin.site.site_header = "Bus Booking System Administration"
 admin.site.site_title = "Bus Booking Admin"
@@ -341,7 +363,7 @@ def _group_booking_app_list(request):
             'app_label': 'users_and_groups',
             'app_url': '',
             'has_module_perms': True,
-            'models': pick(['Student']),
+            'models': pick(['Student', 'SiteConfiguration']),
         },
     ]
 

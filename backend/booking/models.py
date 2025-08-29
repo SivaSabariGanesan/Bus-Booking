@@ -299,3 +299,19 @@ class BookingOTP(models.Model):
             [self.booking.student.email],
             fail_silently=False,
         )
+
+
+class SiteConfiguration(models.Model):
+    allowed_years = models.JSONField(default=list, help_text="List of allowed student years for login, e.g. ['2', '3', '4']")
+
+    class Meta:
+        verbose_name = 'Site Configuration'
+        verbose_name_plural = 'Site Configuration'
+
+    def __str__(self):
+        return "Site Configuration"
+
+    @classmethod
+    def get_solo(cls):
+        obj, created = cls.objects.get_or_create(pk=1)
+        return obj

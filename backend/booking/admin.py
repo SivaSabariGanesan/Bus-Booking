@@ -3,18 +3,72 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils import timezone
 from django.utils.safestring import mark_safe
-from datetime import timedelta
+from datetime import timedelta, datetime
 from import_export.admin import ImportExportModelAdmin
 
 from django.http import HttpResponse
 from django.urls import path
 from django.shortcuts import render
 from django.contrib.admin import SimpleListFilter
-from django.utils import timezone
-from datetime import datetime
 import csv
 from .models import Student, Bus, Booking, BookingOTP, Stop, SiteConfiguration
 from .resources import StudentResource, BusResource, BookingResource, BookingOTPResource
+
+
+def go_action(modeladmin, request, queryset):
+    """Custom 'Go' action that can be used for any model"""
+    from django.contrib import messages
+    selected_count = queryset.count()
+    model_name = modeladmin.model._meta.verbose_name_plural
+    
+    if selected_count == 0:
+        messages.warning(request, f"No {model_name} selected.")
+        return
+    
+    # Customize action based on the model
+    if modeladmin.model == Student:
+        # For students, you could activate/deactivate them, send emails, etc.
+        active_count = queryset.filter(is_active=True).count()
+        inactive_count = queryset.filter(is_active=False).count()
+        messages.success(request, f"Selected {selected_count} students ({active_count} active, {inactive_count} inactive)")
+        
+    elif modeladmin.model == Bus:
+        # For buses, you could open/close booking, update schedules, etc.
+        open_count = queryset.filter(is_booking_open=True).count()
+        closed_count = queryset.filter(is_booking_open=False).count()
+        messages.success(request, f"Selected {selected_count} buses ({open_count} booking open, {closed_count} booking closed)")
+        
+    elif modeladmin.model == Booking:
+        # For bookings, you could confirm/cancel them, etc.
+        confirmed_count = queryset.filter(status='confirmed').count()
+        pending_count = queryset.filter(status='pending').count()
+        cancelled_count = queryset.filter(status='cancelled').count()
+        messages.success(request, f"Selected {selected_count} bookings ({confirmed_count} confirmed, {pending_count} pending, {cancelled_count} cancelled)")
+        
+    elif modeladmin.model == BookingOTP:
+        # For OTPs, you could resend them, etc.
+        verified_count = queryset.filter(verified=True).count()
+        unverified_count = queryset.filter(verified=False).count()
+        expired_count = queryset.filter(expires_at__lt=timezone.now()).count()
+        messages.success(request, f"Selected {selected_count} OTPs ({verified_count} verified, {unverified_count} unverified, {expired_count} expired)")
+        
+    elif modeladmin.model == Stop:
+        # For stops, you could activate/deactivate them, etc.
+        active_count = queryset.filter(is_active=True).count()
+        inactive_count = queryset.filter(is_active=False).count()
+        messages.success(request, f"Selected {selected_count} stops ({active_count} active, {inactive_count} inactive)")
+        
+    elif modeladmin.model == SiteConfiguration:
+        # For site configuration, you could reload settings, etc.
+        messages.success(request, f"Site configuration selected. Current allowed years: {queryset.first().allowed_years if queryset.exists() else 'Not set'}")
+        
+    else:
+        messages.success(request, f"Processing {selected_count} selected {model_name}...")
+    
+    # You can add actual processing logic here based on your requirements
+    # For example, you could redirect to a custom view or perform bulk operations
+
+go_action.short_description = "Go - Process selected items"
 
 
 class DepartureDateFilter(admin.SimpleListFilter):
@@ -113,6 +167,7 @@ class StudentAdmin(ImportExportModelAdmin, UserAdmin):
     ordering = ('email',)
     filter_horizontal = ()
     readonly_fields = ('last_login', 'date_joined', 'has_active_booking')
+    actions = [go_action]
     
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
@@ -161,7 +216,7 @@ class BookingAdmin(admin.ModelAdmin):
         TripTypeFilter, DateFilter, 'status', 'trip_date', 
         'is_outbound_trip', 'booking_date'
     ]
-    actions = ['auto_cancel_completed_outbound']
+    actions = ['auto_cancel_completed_outbound', go_action]
     search_fields = ['student__first_name', 'student__last_name', 'student__roll_no', 'bus__bus_no']
     readonly_fields = ['return_trip_available']
     date_hierarchy = 'trip_date'
@@ -455,7 +510,7 @@ class BookingOTPAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     search_fields = ('booking__student__email', 'booking__student__first_name', 'otp_code')
     ordering = ('-created_at',)
     readonly_fields = ('otp_code', 'created_at', 'expires_at')
-    actions = ['resend_expired_otps']
+    actions = ['resend_expired_otps', go_action]
     
     fieldsets = (
         ('OTP Information', {
@@ -531,7 +586,7 @@ class BusAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     list_filter = (DepartureDateFilter, 'route_name', 'from_location', 'to_location', 'is_booking_open')
     search_fields = ('bus_no', 'route_name', 'from_location', 'to_location')
     ordering = ('bus_no',)
-    actions = ['set_today_departure', 'set_tomorrow_departure', 'set_next_week_departure']
+    actions = ['set_today_departure', 'set_tomorrow_departure', 'set_next_week_departure', go_action]
     readonly_fields = ('available_seats', 'is_full')
     inlines = [StopInline]
     
@@ -596,6 +651,7 @@ class StopAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     search_fields = ('bus__bus_no', 'stop_name', 'location')
     ordering = ('bus__bus_no', 'stop_name', 'location')
     list_editable = ('is_active', 'is_pickup', 'is_dropoff')
+    actions = [go_action]
     
     fieldsets = (
         ('Stop Information', {
@@ -612,6 +668,8 @@ class StopAdmin(ImportExportModelAdmin, admin.ModelAdmin):
 
 @admin.register(SiteConfiguration)
 class SiteConfigurationAdmin(admin.ModelAdmin):
+    actions = [go_action]
+    
     def has_add_permission(self, request):
         # Prevent adding more than one instance
         return not SiteConfiguration.objects.exists()

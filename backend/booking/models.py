@@ -399,6 +399,113 @@ class BookingOTP(models.Model):
         )
 
 
+class PasswordResetOTP(models.Model):
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='password_reset_otps')
+    otp_code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    verified = models.BooleanField(default=False)
+    used = models.BooleanField(default=False, help_text="Whether this OTP has been used to reset password")
+
+    class Meta:
+        verbose_name = 'Password Reset OTP'
+        verbose_name_plural = 'Password Reset OTPs'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Password Reset OTP for {self.student.email} - Verified: {self.verified}"
+    
+    def is_expired(self):
+        return timezone.now() > self.expires_at
+    
+    def is_valid(self):
+        """Check if OTP is valid (not expired, not used, and verified)"""
+        return not self.is_expired() and not self.used and self.verified
+    
+    def generate_otp(self):
+        """Generate a new OTP"""
+        import random
+        import string
+        from datetime import timedelta
+        
+        # Generate new 6-digit OTP
+        self.otp_code = ''.join(random.choices(string.digits, k=6))
+        
+        # Set new expiration time (15 minutes from now)
+        self.expires_at = timezone.now() + timedelta(minutes=15)
+        
+        # Reset verification and usage status
+        self.verified = False
+        self.used = False
+        
+        # Save the changes
+        self.save()
+        
+        # Send OTP email
+        self.send_otp_email()
+        
+        return self.otp_code
+    
+    def verify_otp(self, provided_otp):
+        """Verify the provided OTP"""
+        if self.is_expired():
+            return False, "OTP has expired"
+        
+        if self.used:
+            return False, "OTP has already been used"
+        
+        if self.otp_code == provided_otp:
+            self.verified = True
+            self.save()
+            return True, "OTP verified successfully"
+        
+        return False, "Invalid OTP"
+    
+    def mark_as_used(self):
+        """Mark OTP as used after password reset"""
+        self.used = True
+        self.save()
+    
+    def send_otp_email(self):
+        """Send password reset OTP email to the student"""
+        subject = 'Password Reset OTP - Bus Booking System'
+        message = f"""
+        Dear {self.student.full_name},
+        
+        You have requested to reset your password for the Bus Booking System.
+        
+        Your OTP: {self.otp_code}
+        Expires at: {self.expires_at.strftime('%Y-%m-%d %H:%M')}
+        
+        If you did not request this password reset, please ignore this email.
+        
+        Thank you!
+        College Transport Team
+        """
+        
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [self.student.email],
+            fail_silently=False,
+        )
+    
+    @classmethod
+    def create_for_student(cls, student):
+        """Create a new password reset OTP for a student"""
+        # Invalidate any existing unused OTPs for this student
+        cls.objects.filter(
+            student=student,
+            used=False
+        ).update(used=True)
+        
+        # Create new OTP
+        otp = cls(student=student)
+        otp.generate_otp()
+        return otp
+
+
 class SiteConfiguration(models.Model):
     allowed_years = models.JSONField(default=list, help_text="List of allowed student years for login, e.g. ['2', '3', '4']")
     booking_open = models.BooleanField(default=True, help_text="If disabled, students cannot create new bookings")

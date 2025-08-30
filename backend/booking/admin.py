@@ -5,13 +5,16 @@ from django.utils import timezone
 from django.utils.safestring import mark_safe
 from datetime import timedelta, datetime
 from import_export.admin import ImportExportModelAdmin
+# Remove the problematic import - ImportValidationError doesn't exist in this version
+from django.core.exceptions import ValidationError
 
 from django.http import HttpResponse
 from django.urls import path
 from django.shortcuts import render
 from django.contrib.admin import SimpleListFilter
 import csv
-from .models import Student, Bus, Booking, BookingOTP, Stop, SiteConfiguration
+import os
+from .models import Student, Bus, Booking, BookingOTP, Stop, SiteConfiguration, PasswordResetOTP
 from .resources import StudentResource, BusResource, BookingResource, BookingOTPResource
 
 
@@ -161,13 +164,13 @@ class StopInline(admin.TabularInline):
 @admin.register(Student)
 class StudentAdmin(ImportExportModelAdmin, UserAdmin):
     resource_class = StudentResource
-    list_display = ('email', 'first_name', 'last_name', 'roll_no', 'dept', 'year', 'is_active', 'has_active_booking')
+    list_display = ('email', 'first_name', 'last_name', 'roll_no', 'dept', 'year', 'is_active', 'has_active_booking', 'password_status_short')
     list_filter = ('year', 'dept', 'gender', 'is_active')
     search_fields = ('email', 'first_name', 'last_name', 'roll_no')
     ordering = ('email',)
     filter_horizontal = ()
-    readonly_fields = ('last_login', 'date_joined', 'has_active_booking')
-    actions = [go_action]
+    readonly_fields = ('last_login', 'date_joined', 'has_active_booking', 'password_status')
+    actions = ['send_forgot_password_otp', 'set_default_passwords', go_action]
     
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
@@ -181,6 +184,10 @@ class StudentAdmin(ImportExportModelAdmin, UserAdmin):
             'fields': ('is_active', 'is_staff', 'is_superuser'),
         }),
         ('Important dates', {'fields': ('last_login',)}),
+        ('Password Information', {
+            'fields': ('password_status',),
+            'description': 'Password status for imported users. Use "Send forgot password OTP" action to help users reset their passwords.'
+        }),
     )
     
     add_fieldsets = (
@@ -195,6 +202,158 @@ class StudentAdmin(ImportExportModelAdmin, UserAdmin):
         return obj.has_active_booking()
     has_active_booking.boolean = True
     has_active_booking.short_description = 'Active Booking'
+    
+    def password_status(self, obj):
+        """Display password status for imported users"""
+        if obj.password:
+            # Check if password is the default imported password
+            from django.contrib.auth.hashers import check_password
+            if check_password('Changeme@123', obj.password):
+                return mark_safe(
+                    '<span style="color: #856404; background-color: #fff3cd; padding: 4px 8px; border-radius: 4px; border: 1px solid #ffeaa7;">'
+                    '🔑 Default Password Set (Changeme@123)<br>'
+                    '<small>User should change this password on first login</small>'
+                    '</span>'
+                )
+            else:
+                return mark_safe(
+                    '<span style="color: #155724; background-color: #d4edda; padding: 4px 8px; border-radius: 4px; border: 1px solid #c3e6cb;">'
+                    '✅ Custom Password Set<br>'
+                    '<small>User has set their own password</small>'
+                    '</span>'
+                )
+        else:
+            return mark_safe(
+                '<span style="color: #721c24; background-color: #f8d7da; padding: 4px 8px; border-radius: 4px; border: 1px solid #f5c6cb;">'
+                '❌ No Password Set<br>'
+                '<small>User cannot login until password is set</small>'
+                '</span>'
+            )
+    password_status.short_description = 'Password Status'
+    
+    def password_status_short(self, obj):
+        """Short version of password status for list display"""
+        if obj.password:
+            from django.contrib.auth.hashers import check_password
+            if check_password('Changeme@123', obj.password):
+                return mark_safe('<span style="color: #856404;">🔑 Default</span>')
+            else:
+                return mark_safe('<span style="color: #155724;">✅ Set</span>')
+        else:
+            return mark_safe('<span style="color: #721c24;">❌ None</span>')
+    password_status_short.short_description = 'Password'
+    
+    def send_forgot_password_otp(self, request, queryset):
+        """Send forgot password OTP to selected students"""
+        count = 0
+        for student in queryset:
+            try:
+                otp = PasswordResetOTP.create_for_student(student)
+                count += 1
+                self.message_user(
+                    request, 
+                    f"✅ Password reset OTP sent to {student.email}",
+                    level='SUCCESS'
+                )
+            except Exception as e:
+                self.message_user(
+                    request, 
+                    f"❌ Failed to send OTP to {student.email}: {str(e)}",
+                    level='ERROR'
+                )
+        
+        if count > 0:
+            self.message_user(
+                request, 
+                f"✅ Successfully sent password reset OTPs to {count} student(s)",
+                level='SUCCESS'
+            )
+    
+    send_forgot_password_otp.short_description = "🔑 Send forgot password OTP"
+    
+    def set_default_passwords(self, request, queryset):
+        """Set default password for selected students who don't have passwords"""
+        from django.contrib.auth.hashers import make_password
+        
+        count = 0
+        for student in queryset:
+            if not student.password:
+                student.password = make_password('Changeme@123')
+                student.save()
+                count += 1
+        
+        if count > 0:
+            self.message_user(
+                request, 
+                f"✅ Set default password 'Changeme@123' for {count} student(s). They should change it on first login.",
+                level='SUCCESS'
+            )
+        else:
+            self.message_user(
+                request, 
+                "ℹ️ All selected students already have passwords set.",
+                level='INFO'
+            )
+    
+    set_default_passwords.short_description = "🔧 Set default passwords for selected students"
+
+    def get_import_formats(self):
+        """Override to ensure CSV format is available"""
+        formats = super().get_import_formats()
+        return [f for f in formats if f().get_title() == 'csv']
+
+    def get_export_formats(self):
+        """Override to ensure CSV format is available"""
+        formats = super().get_export_formats()
+        return [f for f in formats if f().get_title() == 'csv']
+
+    def get_urls(self):
+        """Add custom URLs for better import handling"""
+        urls = super().get_urls()
+        custom_urls = [
+            path('download-template/', self.admin_site.admin_view(self.download_template_view), name='student_download_template'),
+        ]
+        return custom_urls + urls
+
+    def download_template_view(self, request):
+        """Download CSV template for students"""
+        from django.conf import settings
+        import os
+        
+        template_path = os.path.join(settings.BASE_DIR, 'static', 'csv_templates', 'students_template.csv')
+        
+        if not os.path.exists(template_path):
+            # Create a basic template if it doesn't exist
+            response = HttpResponse(content_type='text/csv')
+            response['Content-Disposition'] = 'attachment; filename="students_template.csv"'
+            
+            writer = csv.writer(response)
+            writer.writerow(['first_name', 'last_name', 'email', 'phone_number', 'year', 'roll_no', 'dept', 'gender'])
+            writer.writerow(['John', 'Doe', 'john.doe@example.com', '1234567890', '1', '2023001', 'Computer Science', 'M'])
+            writer.writerow(['Jane', 'Smith', 'jane.smith@example.com', '9876543210', '2', '2022001', 'Electrical Engineering', 'F'])
+            
+            return response
+        
+        with open(template_path, 'r', encoding='utf-8') as f:
+            response = HttpResponse(f.read(), content_type='text/csv')
+            response['Content-Disposition'] = 'attachment; filename="students_template.csv"'
+            return response
+
+    def save_model(self, request, obj, form, change):
+        """Ensure password is set when creating new students"""
+        if not change and not obj.password:  # New student without password
+            from django.contrib.auth.hashers import make_password
+            obj.password = make_password('Changeme@123')
+        super().save_model(request, obj, form, change)
+
+    def save_related(self, request, form, formsets, change):
+        """Ensure password is set for related objects"""
+        super().save_related(request, form, formsets, change)
+        # Double-check password is set
+        if not change and not form.instance.password:
+            from django.contrib.auth.hashers import make_password
+            form.instance.password = make_password('Changeme@123')
+            form.instance.save()
 
 
 # Booking Group - Booking and BookingOTP
@@ -666,6 +825,59 @@ class StopAdmin(ImportExportModelAdmin, admin.ModelAdmin):
     )
 
 
+@admin.register(PasswordResetOTP)
+class PasswordResetOTPAdmin(admin.ModelAdmin):
+    list_display = ('student', 'otp_code', 'created_at', 'expires_at', 'verified', 'used', 'is_expired', 'time_remaining')
+    list_filter = ('verified', 'used', 'created_at', 'expires_at')
+    search_fields = ('student__email', 'student__first_name', 'student__last_name', 'otp_code')
+    ordering = ('-created_at',)
+    readonly_fields = ('otp_code', 'created_at', 'expires_at')
+    actions = ['resend_expired_otps', go_action]
+    
+    fieldsets = (
+        ('OTP Information', {
+            'fields': ('student', 'otp_code', 'created_at', 'expires_at', 'verified', 'used')
+        }),
+        ('Actions', {
+            'fields': (),
+            'description': 'Use the "Resend OTP" action below for expired OTPs'
+        }),
+    )
+    
+    def is_expired(self, obj):
+        return obj.is_expired()
+    is_expired.boolean = True
+    is_expired.short_description = 'Expired'
+    
+    def time_remaining(self, obj):
+        if obj.is_expired():
+            return "Expired"
+        remaining = obj.expires_at - timezone.now()
+        minutes = int(remaining.total_seconds() // 60)
+        seconds = int(remaining.total_seconds() % 60)
+        return f"{minutes}m {seconds}s"
+    time_remaining.short_description = 'Time Remaining'
+    
+    def resend_expired_otps(self, request, queryset):
+        """Admin action to resend OTPs for expired entries"""
+        expired_otps = queryset.filter(expires_at__lt=timezone.now(), used=False)
+        count = 0
+        
+        for otp in expired_otps:
+            try:
+                otp.generate_otp()
+                count += 1
+            except Exception as e:
+                self.message_user(request, f"Failed to resend OTP for {otp.student.email}: {str(e)}", level='ERROR')
+        
+        if count > 0:
+            self.message_user(request, f"Successfully resent {count} OTP(s)")
+        else:
+            self.message_user(request, "No expired OTPs found in the selection")
+    
+    resend_expired_otps.short_description = "Resend OTP for expired entries"
+
+
 @admin.register(SiteConfiguration)
 class SiteConfigurationAdmin(admin.ModelAdmin):
     actions = [go_action]
@@ -744,7 +956,7 @@ def _group_booking_app_list(request):
             'app_label': 'users_and_groups',
             'app_url': '',
             'has_module_perms': True,
-            'models': pick(['Student', 'SiteConfiguration']),
+            'models': pick(['Student', 'PasswordResetOTP', 'SiteConfiguration']),
         },
         {
             'name': 'Bookings',

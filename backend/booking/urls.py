@@ -12,6 +12,12 @@ urlpatterns = [
     path('bookings/verify-otp/', views.verify_booking_otp, name='verify_booking_otp'),
     path('bookings/resend-otp/', views.resend_otp, name='resend_otp'),
     
+    # Forgot Password URLs
+    path('forgot-password/', views.forgot_password_request, name='forgot_password_request'),
+    path('verify-password-otp/', views.verify_password_reset_otp, name='verify_password_reset_otp'),
+    path('reset-password/', views.reset_password, name='reset_password'),
+    path('resend-password-otp/', views.resend_password_reset_otp, name='resend_password_reset_otp'),
+    
     # Admin URLs for pickup and drop-off management
     path('admin/pickup-list/', views.admin_pickup_list, name='admin_pickup_list'),
     path('admin/dropoff-list/', views.admin_dropoff_list, name='admin_dropoff_list'),

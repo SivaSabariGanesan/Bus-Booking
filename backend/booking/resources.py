@@ -21,6 +21,13 @@ class StudentResource(resources.ModelResource):
         # Set default password for all imported students
         row['password'] = make_password('Changeme@123')
         return row
+    
+    def after_import_instance(self, instance, new, **kwargs):
+        """Ensure password is set after import"""
+        if new and not instance.password:
+            from django.contrib.auth.hashers import make_password
+            instance.password = make_password('Changeme@123')
+            instance.save()
 
 
 class BusResource(resources.ModelResource):

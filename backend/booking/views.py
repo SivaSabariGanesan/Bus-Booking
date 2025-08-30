@@ -17,6 +17,7 @@ from django.conf import settings
 from django.core.exceptions import MultipleObjectsReturned
 from django.http import HttpResponse
 import csv
+from .models import PasswordResetOTP
 
 
 @csrf_exempt
@@ -629,4 +630,250 @@ def admin_export_dropoff_list(request):
         return Response({
             'success': False,
             'error': f'Error exporting drop-off list: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# Forgot Password Views
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def forgot_password_request(request):
+    """Request password reset OTP"""
+    try:
+        email = request.data.get('email')
+        if not email:
+            return Response({
+                'success': False,
+                'error': 'Email is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if student exists
+        try:
+            student = Student.objects.get(email=email)
+        except Student.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'No account found with this email address'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check if student is active
+        if not student.is_active:
+            return Response({
+                'success': False,
+                'error': 'Account is deactivated. Please contact administrator.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create password reset OTP
+        try:
+            otp = PasswordResetOTP.create_for_student(student)
+            return Response({
+                'success': True,
+                'message': f'Password reset OTP has been sent to {email}',
+                'expires_at': otp.expires_at.isoformat()
+            })
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'Failed to send OTP: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': f'Unexpected error: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def verify_password_reset_otp(request):
+    """Verify password reset OTP"""
+    try:
+        email = request.data.get('email')
+        otp_code = request.data.get('otp')
+        
+        if not email or not otp_code:
+            return Response({
+                'success': False,
+                'error': 'Email and OTP are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if student exists
+        try:
+            student = Student.objects.get(email=email)
+        except Student.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'No account found with this email address'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get the latest unused OTP for this student
+        try:
+            otp = PasswordResetOTP.objects.filter(
+                student=student,
+                used=False
+            ).latest('created_at')
+        except PasswordResetOTP.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'No OTP found. Please request a new password reset.'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Verify OTP
+        is_valid, message = otp.verify_otp(otp_code)
+        
+        if is_valid:
+            return Response({
+                'success': True,
+                'message': 'OTP verified successfully',
+                'otp_id': otp.id
+            })
+        else:
+            return Response({
+                'success': False,
+                'error': message
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': f'Unexpected error: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def reset_password(request):
+    """Reset password using verified OTP"""
+    try:
+        email = request.data.get('email')
+        otp_id = request.data.get('otp_id')
+        new_password = request.data.get('new_password')
+        confirm_password = request.data.get('confirm_password')
+        
+        if not all([email, otp_id, new_password, confirm_password]):
+            return Response({
+                'success': False,
+                'error': 'All fields are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if passwords match
+        if new_password != confirm_password:
+            return Response({
+                'success': False,
+                'error': 'Passwords do not match'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check password strength
+        if len(new_password) < 8:
+            return Response({
+                'success': False,
+                'error': 'Password must be at least 8 characters long'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if student exists
+        try:
+            student = Student.objects.get(email=email)
+        except Student.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'No account found with this email address'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get and verify OTP
+        try:
+            otp = PasswordResetOTP.objects.get(
+                id=otp_id,
+                student=student,
+                verified=True,
+                used=False
+            )
+        except PasswordResetOTP.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'Invalid or expired OTP. Please request a new password reset.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if OTP is expired
+        if otp.is_expired():
+            return Response({
+                'success': False,
+                'error': 'OTP has expired. Please request a new password reset.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Reset password
+        try:
+            student.set_password(new_password)
+            student.save()
+            
+            # Mark OTP as used
+            otp.mark_as_used()
+            
+            return Response({
+                'success': True,
+                'message': 'Password has been reset successfully. You can now login with your new password.'
+            })
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'Failed to reset password: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': f'Unexpected error: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def resend_password_reset_otp(request):
+    """Resend password reset OTP"""
+    try:
+        email = request.data.get('email')
+        if not email:
+            return Response({
+                'success': False,
+                'error': 'Email is required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if student exists
+        try:
+            student = Student.objects.get(email=email)
+        except Student.DoesNotExist:
+            return Response({
+                'success': False,
+                'error': 'No account found with this email address'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        # Check if student is active
+        if not student.is_active:
+            return Response({
+                'success': False,
+                'error': 'Account is deactivated. Please contact administrator.'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create new password reset OTP
+        try:
+            otp = PasswordResetOTP.create_for_student(student)
+            return Response({
+                'success': True,
+                'message': f'New password reset OTP has been sent to {email}',
+                'expires_at': otp.expires_at.isoformat()
+            })
+        except Exception as e:
+            return Response({
+                'success': False,
+                'error': f'Failed to send OTP: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+    except Exception as e:
+        return Response({
+            'success': False,
+            'error': f'Unexpected error: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

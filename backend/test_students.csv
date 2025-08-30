@@ -1,0 +1,6 @@
+first_name,last_name,email,phone_number,year,roll_no,dept,gender
+John,Doe,john.doe@example.com,1234567890,1,2023001,Computer Science,M
+Jane,Smith,jane.smith@example.com,9876543210,2,2022001,Electrical Engineering,F
+Mike,Johnson,mike.johnson@example.com,5551234567,3,2021001,Mechanical Engineering,M
+Sarah,Williams,sarah.williams@example.com,4449876543,4,2020001,Civil Engineering,F
+David,Brown,david.brown@example.com,3335557777,1,2023002,Computer Science,M

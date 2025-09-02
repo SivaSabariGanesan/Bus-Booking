@@ -2,7 +2,7 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "cd backend && gunicorn transport_booking.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120 --worker-class gthread --env DJANGO_SETTINGS_MODULE=transport_booking.settings_production"
+startCommand = "gunicorn backend/transport_booking/wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120 --worker-class gthread --env DJANGO_SETTINGS_MODULE=transport_booking.settings_production"
 healthcheckPath = "/admin/"
 healthcheckTimeout = 100
 restartPolicyType = "on_failure"

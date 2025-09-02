@@ -8,5 +8,10 @@ healthcheckTimeout = 100
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
 
+[deploy.preDeploy]
+cmds = [
+    "python backend/manage.py migrate --settings=transport_booking.settings_production --noinput"
+]
+
 [env]
 DJANGO_SETTINGS_MODULE = "transport_booking.settings_production"

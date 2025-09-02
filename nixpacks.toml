@@ -1,6 +1,9 @@
 [phases.setup]
 nixPkgs = ["python311", "python311Packages.pip"]
 
+[variables]
+WORKDIR = "backend"
+
 [phases.install]
 cmds = [
     "pip install -r backend/requirements_production.txt"
@@ -12,4 +15,4 @@ cmds = [
 ]
 
 [start]
-cmd = "cd backend && gunicorn transport_booking.wsgi:application --bind 0.0.0.0:$PORT --workers 3 --timeout 120 --worker-class gthread --env DJANGO_SETTINGS_MODULE=transport_booking.settings_production"
+cmd = "python manage.py runserver 0.0.0.0:8080 --settings=transport_booking.settings_production"

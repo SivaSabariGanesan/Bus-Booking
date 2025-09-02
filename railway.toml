@@ -2,7 +2,7 @@
 builder = "nixpacks"
 
 [deploy]
-startCommand = "python backend/manage.py runserver 0.0.0.0:8080 --settings=transport_booking.settings_production"
+startCommand = "python manage.py runserver 0.0.0.0:8080 --settings=transport_booking.settings_production"
 healthcheckPath = "/health/"
 healthcheckTimeout = 100
 restartPolicyType = "on_failure"

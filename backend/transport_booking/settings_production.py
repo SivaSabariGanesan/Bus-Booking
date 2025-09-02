@@ -56,18 +56,43 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # CORS settings for production
 CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
-# Allow all Netlify and Railway subdomains via regex
+# Allow all Netlify, Railway, and Vercel subdomains via regex
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.netlify\.app$",
     r"^https://.*\.railway\.app$",
+    r"^https://.*\.vercel\.app$",
+]
+
+# Additional CORS settings for API access
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = False  # Keep this False for security
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
 ]
 
 # CSRF settings for production
 CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
-# Add Railway domains to CSRF trusted origins
+# Add Railway, Netlify, and Vercel domains to CSRF trusted origins
 CSRF_TRUSTED_ORIGINS.extend([
     'https://*.railway.app',
     'https://*.netlify.app',
+    'https://*.vercel.app',
 ])
 
 # Email settings for production

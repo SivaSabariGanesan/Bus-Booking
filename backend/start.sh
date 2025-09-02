@@ -9,8 +9,24 @@ echo "🚀 Starting Bus Booking System on Railway..."
 PORT=${PORT:-8080}
 echo "📡 Using port: $PORT"
 
+# Show environment variables
+echo "🔧 Environment variables:"
+echo "DJANGO_SETTINGS_MODULE: $DJANGO_SETTINGS_MODULE"
+echo "SECRET_KEY: ${SECRET_KEY:0:10}..."
+echo "DEBUG: $DEBUG"
+echo "ALLOWED_HOSTS: $ALLOWED_HOSTS"
+
 # Change to backend directory
 cd backend
+
+# Test Python and Django
+echo "🐍 Testing Python and Django..."
+python --version
+python -c "import django; print(f'Django version: {django.get_version()}')"
+
+# Run startup test
+echo "🧪 Running startup test..."
+python test_startup.py
 
 # Run Django configuration check
 echo "🔍 Checking Django configuration..."
@@ -23,4 +39,5 @@ exec gunicorn transport_booking.wsgi:application \
     --workers 1 \
     --timeout 120 \
     --worker-class gthread \
-    --env DJANGO_SETTINGS_MODULE=transport_booking.settings_production
+    --env DJANGO_SETTINGS_MODULE=transport_booking.settings_production \
+    --log-level debug

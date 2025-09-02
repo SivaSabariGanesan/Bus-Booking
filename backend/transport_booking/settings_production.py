@@ -15,8 +15,8 @@ SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-change-this-in-produc
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = False
 
-# Include Render and Netlify by default; override via ALLOWED_HOSTS env var if needed
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,.onrender.com,.netlify.app').split(',')
+# Include Render, Netlify, and Railway by default; override via ALLOWED_HOSTS env var if needed
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', 'localhost,127.0.0.1,.onrender.com,.netlify.app,.railway.app').split(',')
 
 # Security settings for production
 SECURE_BROWSER_XSS_FILTER = True
@@ -110,6 +110,22 @@ CACHES = {
 # Session settings
 SESSION_COOKIE_AGE = 3600  # 1 hour
 SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# Database configuration for Railway
+# Use PostgreSQL if DATABASE_URL is provided, otherwise fall back to SQLite
+if 'DATABASE_URL' in os.environ:
+    import dj_database_url
+    DATABASES = {
+        'default': dj_database_url.parse(os.environ['DATABASE_URL'])
+    }
+else:
+    # Fallback to SQLite for Railway (with proper path)
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # REST Framework production settings
 REST_FRAMEWORK = {

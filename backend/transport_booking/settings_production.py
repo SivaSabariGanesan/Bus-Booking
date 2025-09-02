@@ -56,10 +56,19 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # CORS settings for production
 CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
-# Allow all Netlify subdomains via regex (e.g., https://your-site.netlify.app)
+# Allow all Netlify and Railway subdomains via regex
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^https://.*\.netlify\.app$",
+    r"^https://.*\.railway\.app$",
 ]
+
+# CSRF settings for production
+CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'http://localhost:3000,http://127.0.0.1:3000').split(',')
+# Add Railway domains to CSRF trusted origins
+CSRF_TRUSTED_ORIGINS.extend([
+    'https://*.railway.app',
+    'https://*.netlify.app',
+])
 
 # Email settings for production
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
